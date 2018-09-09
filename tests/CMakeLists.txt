@@ -1,0 +1,20 @@
+find_package(GTest REQUIRED)
+add_executable(test_simple simple.cpp)
+target_link_libraries(test_simple PRIVATE GTest::GTest GTest::Main phkvstorage)
+
+add_executable(test_buffers buffers.cpp )
+target_link_libraries(test_buffers PRIVATE GTest::GTest GTest::Main fmt::fmt phkvstorage)
+
+add_executable(test_file file.cpp)
+target_link_libraries(test_file PRIVATE GTest::GTest GTest::Main fmt::fmt phkvstorage)
+
+add_executable(test_stmfilestorage stmfilestorage.cpp)
+target_link_libraries(test_stmfilestorage PRIVATE GTest::GTest GTest::Main fmt::fmt phkvstorage)
+
+if(MSVC)
+    set(DISABLED_WARNINGS /wd4251 /wd4275)
+    target_compile_options(test_simple PRIVATE ${DISABLED_WARNINGS})
+    target_compile_options(test_buffers PRIVATE ${DISABLED_WARNINGS})
+    target_compile_options(test_file PRIVATE ${DISABLED_WARNINGS})
+    target_compile_options(test_stmfilestorage PRIVATE ${DISABLED_WARNINGS})
+endif()
