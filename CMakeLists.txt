@@ -28,7 +28,7 @@ find_package(spdlog CONFIG REQUIRED)
 
 #target_link_libraries(buf PRIVATE Boost::system fmt::fmt spdlog::spdlog)
 
-add_library(phkvstorage FileSystem.cpp SmallToMediumFileStorage.cpp SmallToMediumFileStorage.hpp FileVersion.hpp UIntArrayHexFormatter.hpp FileOpsHelpers.hpp)
+add_library(phkvstorage FileSystem.cpp SmallToMediumFileStorage.cpp SmallToMediumFileStorage.hpp FileVersion.hpp UIntArrayHexFormatter.hpp FileOpsHelpers.hpp BigFileStorage.cpp BigFileStorage.hpp)
 
 target_link_libraries(phkvstorage Boost::system Boost::filesystem fmt::fmt spdlog::spdlog)
 target_include_directories(phkvstorage PUBLIC ${PROJECT_SOURCE_DIR})

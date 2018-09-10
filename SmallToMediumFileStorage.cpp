@@ -23,23 +23,21 @@ void SmallToMediumFileStorage::open()
 
     InputBinBuffer in(buf);
 
+    MagicType magic{};
+    FileVersion version{0, 0};
+    in.readArray(magic);
+    if(magic != s_magic)
     {
-        std::array<uint8_t, 4> magic{};
-        FileVersion version{0, 0};
-        in.readArray(magic);
-        if(magic != s_magic)
-        {
-            throw std::runtime_error(
-                fmt::format("SmallToMediumFileStorage: invalid magic in file {}. Expected {}, but found {}",
-                            m_file->getFilename().string(), s_magic, magic));
-        }
-        version.deserialize(in);
-        if(version != s_currentVersion)
-        {
-            throw std::runtime_error(
-                fmt::format("SmallToMediumFileStorage: invalid version of file {}. Expected {}, but found {}",
-                            m_file->getFilename().string(), s_magic, magic));
-        }
+        throw std::runtime_error(
+            fmt::format("SmallToMediumFileStorage: invalid magic in file {}. Expected {}, but found {}",
+                        m_file->getFilename().string(), s_magic, magic));
+    }
+    version.deserialize(in);
+    if(version != s_currentVersion)
+    {
+        throw std::runtime_error(
+            fmt::format("SmallToMediumFileStorage: invalid version of file {}. Expected {}, but found {}",
+                        m_file->getFilename().string(), s_currentVersion, version));
     }
     for(size_t i = 0; i < k_slotsCount; ++i)
     {
@@ -64,7 +62,6 @@ void SmallToMediumFileStorage::create()
     {
         out.writeU64(0);
     }
-    m_file->seek(0);
     m_file->write(buf);
 }
 

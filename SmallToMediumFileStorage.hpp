@@ -43,7 +43,9 @@ private:
     static constexpr size_t k_slotSizeIncrement = 8;
     //for object from 9 (two slots) to 256 (32 slots)
     static constexpr size_t k_slotsCount = 31;
-    static constexpr std::array<uint8_t, 4> s_magic{'S', 'M', 'F', 'S'};
+
+    using MagicType = std::array<uint8_t,4>;
+    static constexpr MagicType s_magic{'S', 'M', 'F', 'S'};
     static constexpr FileVersion s_currentVersion{0x0001, 0x0000};
     static constexpr size_t k_headerSize = s_magic.size() + FileVersion::binSize() + k_slotsCount * k_offsetSize;
 

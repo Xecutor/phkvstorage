@@ -5,11 +5,13 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/endian/buffers.hpp>
 
-namespace phkvs{
+namespace phkvs {
 
-class InputBinBuffer{
+class InputBinBuffer {
 public:
-    InputBinBuffer(boost::asio::const_buffer buf):m_buf(buf){}
+    InputBinBuffer(boost::asio::const_buffer buf) : m_buf(buf)
+    {
+    }
 
     uint8_t readU8()
     {
@@ -31,12 +33,26 @@ public:
         return read<boost::endian::little_uint64_buf_t>().value();
     }
 
-    template <size_t N>
+    template<size_t N>
     void readArray(std::array<uint8_t, N>& array)
     {
         checkRemainingSpaceAndThrow(N);
         memcpy(array.data(), m_buf.data(), N);
         m_buf += N;
+    }
+
+    void readBufAndAdvance(boost::asio::mutable_buffer& buf, size_t amount)
+    {
+        checkRemainingSpaceAndThrow(amount);
+        if(amount > buf.size())
+        {
+            throw std::out_of_range(
+                fmt::format("Attempt to read {} bytes into buffer with {} bytes",
+                            amount, buf.size()));
+        }
+        memcpy(buf.data(), m_buf.data(), amount);
+        m_buf += amount;
+        buf += amount;
     }
 
     float readFloat()
@@ -57,7 +73,7 @@ public:
         return reinterpret_cast<double&>(rv);
     }
 
-    size_t remainingSpace()const
+    size_t remainingSpace() const
     {
         return m_buf.size();
     }
@@ -75,7 +91,7 @@ private:
         }
     }
 
-    template <class T>
+    template<class T>
     const T& read()
     {
         checkRemainingSpaceAndThrow(sizeof(T));

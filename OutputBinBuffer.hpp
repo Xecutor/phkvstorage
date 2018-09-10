@@ -51,6 +51,20 @@ public:
         m_buf += N;
     }
 
+    void writeBufAndAdvance(boost::asio::const_buffer& buf, size_t amount)
+    {
+        checkRemainingSpaceAndThrow(amount);
+        if(amount>buf.size())
+        {
+            throw std::out_of_range(
+                fmt::format("Attempt to write {} bytes from buffer with {} bytes.",
+                            amount, buf.size()));
+        }
+        memcpy(m_buf.data(), buf.data(), amount);
+        m_buf += amount;
+        buf += amount;
+    }
+
     size_t remainingSpace()const
     {
         return m_buf.size();

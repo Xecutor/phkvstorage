@@ -9,11 +9,12 @@
 #include <boost/filesystem.hpp>
 
 class SmallToMediumStorageTest : public FilesCleanupFixture {
+public:
+    boost::filesystem::path filename = "test.bin";
 };
 
 TEST_F(SmallToMediumStorageTest, CreateOpen)
 {
-    boost::filesystem::path filename = "test.bin";
     {
         phkvs::SmallToMediumFileStorage storage(phkvs::FileSystem::createFileUnique(filename));
         addToCleanup(filename);
@@ -28,7 +29,6 @@ TEST_F(SmallToMediumStorageTest, CreateOpen)
 
 TEST_F(SmallToMediumStorageTest, CreateWriteRead)
 {
-    boost::filesystem::path filename = "test.bin";
     phkvs::SmallToMediumFileStorage storage(phkvs::FileSystem::createFileUnique(filename));
     addToCleanup(filename);
     storage.create();
