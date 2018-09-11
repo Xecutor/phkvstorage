@@ -74,12 +74,13 @@ class RandomAccessFile : public IRandomAccessFile {
 public:
 
     RandomAccessFile(boost::filesystem::path filename, Handle&& handle) :
+      m_filename(std::move(filename)), m_handle(std::move(handle))
     {
     }
 
     ~RandomAccessFile() override = default;
 
-    void read(boost::asio::mutable_buffer& buf) override
+    void read(boost::asio::mutable_buffer buf) override
     {
         int ret = ::read(m_handle.get(), buf.data(), buf.size());
         if(ret == -1)

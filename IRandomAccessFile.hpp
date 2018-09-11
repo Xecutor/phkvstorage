@@ -10,7 +10,7 @@ class IRandomAccessFile{
 public:
     using OffsetType = uint64_t;
     virtual ~IRandomAccessFile() = default;
-    virtual void read(boost::asio::mutable_buffer& buf) = 0;
+    virtual void read(boost::asio::mutable_buffer buf) = 0;
     virtual void write(boost::asio::const_buffer buf) = 0;
     //Seek to specified absolute offset
     virtual void seek(OffsetType offset) = 0;

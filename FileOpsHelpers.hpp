@@ -76,8 +76,9 @@ void readUIntAt(IRandomAccessFile& file, IRandomAccessFile::OffsetType offset, T
     static_assert(sizeof(T) <= 8, "Unsupported int type size");
     std::array<uint8_t, sizeof(T)> data;
     file.seek(offset);
-    file.read(boost::asio::buffer(data));
-    InputBinBuffer inBuf(boost::asio::buffer(data));
+    auto buf = boost::asio::buffer(data);
+    file.read(buf);
+    InputBinBuffer inBuf(buf);
     using namespace phkvs::details;
     getUIntFromBuf(inBuf, value);
 }

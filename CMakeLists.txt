@@ -12,7 +12,7 @@ if(VCPKG_ROOT)
     include(${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
 endif()
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 if(MSVC)
     add_definitions(-D_WIN32_WINNT=0x0601) #win7
@@ -39,3 +39,5 @@ enable_testing()
 add_test(NAME simpletest COMMAND test_simple)
 add_test(NAME bufferstest COMMAND test_buffers)
 add_test(NAME filetest COMMAND test_file)
+add_test(NAME stmfilestoragetest COMMAND test_stmfilestorage)
+add_test(NAME bigfilestoragetest COMMAND test_bigfilestorage)

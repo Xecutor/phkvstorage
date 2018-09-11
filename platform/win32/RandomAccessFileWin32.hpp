@@ -77,7 +77,7 @@ public:
 
     ~RandomAccessFile() override = default;
 
-    void read(boost::asio::mutable_buffer& buf) override
+    void read(boost::asio::mutable_buffer buf) override
     {
         DWORD actuallyRead = 0;
         if(!ReadFile(m_handle.get(), buf.data(), buf.size(), &actuallyRead, nullptr))
