@@ -5,6 +5,7 @@
 
 #include "FileSystem.hpp"
 #include "FileVersion.hpp"
+#include "FileMagic.hpp"
 
 #include <fmt/format.h>
 
@@ -16,11 +17,8 @@ public:
 
     using OffsetType = IRandomAccessFile::OffsetType;
 
-    explicit SmallToMediumFileStorage(FileSystem::UniqueFilePtr&& file):m_file(std::move(file))
-    {}
-
-    void open();
-    void create();
+    static std::unique_ptr<SmallToMediumFileStorage> open(FileSystem::UniqueFilePtr&& file);
+    static std::unique_ptr<SmallToMediumFileStorage> create(FileSystem::UniqueFilePtr&& file);
 
     OffsetType allocateAndWrite(boost::asio::const_buffer buf);
     OffsetType overwrite(OffsetType offset, size_t oldSize, boost::asio::const_buffer buf);
@@ -44,10 +42,12 @@ private:
     //for object from 9 (two slots) to 256 (32 slots)
     static constexpr size_t k_slotsCount = 31;
 
-    using MagicType = std::array<uint8_t,4>;
-    static constexpr MagicType s_magic{'S', 'M', 'F', 'S'};
-    static constexpr FileVersion s_currentVersion{0x0001, 0x0000};
-    static constexpr size_t k_headerSize = s_magic.size() + FileVersion::binSize() + k_slotsCount * k_offsetSize;
+    static const FileMagic s_magic;
+    static const FileVersion s_currentVersion;
+    static constexpr size_t k_headerSize = FileMagic::binSize() + FileVersion::binSize() + k_slotsCount * k_offsetSize;
+
+    void openImpl();
+    void createImpl();
 
     static size_t sizeToSlotIndex(size_t size)
     {
@@ -79,11 +79,17 @@ private:
 
     static OffsetType offsetForFreeSlotByIndex(size_t index)
     {
-        return s_magic.size() + FileVersion::binSize() + index * k_offsetSize;
+        return FileMagic::binSize() + FileVersion::binSize() + index * k_offsetSize;
     }
 
     FileSystem::UniqueFilePtr m_file;
     std::array<uint64_t, k_slotsCount> m_freeSlotsListOffset{};
+
+    struct PrivateKey;
+
+public:
+    SmallToMediumFileStorage(PrivateKey&, FileSystem::UniqueFilePtr&& file):m_file(std::move(file))
+    {}
 };
 
 }

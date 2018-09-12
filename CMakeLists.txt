@@ -12,7 +12,7 @@ if(VCPKG_ROOT)
     include(${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 
 if(MSVC)
     add_definitions(-D_WIN32_WINNT=0x0601) #win7
@@ -28,7 +28,7 @@ find_package(spdlog CONFIG REQUIRED)
 
 #target_link_libraries(buf PRIVATE Boost::system fmt::fmt spdlog::spdlog)
 
-add_library(phkvstorage FileSystem.cpp SmallToMediumFileStorage.cpp SmallToMediumFileStorage.hpp FileVersion.hpp UIntArrayHexFormatter.hpp FileOpsHelpers.hpp BigFileStorage.cpp BigFileStorage.hpp)
+add_library(phkvstorage FileSystem.cpp SmallToMediumFileStorage.cpp SmallToMediumFileStorage.hpp FileVersion.hpp UIntArrayHexFormatter.hpp FileOpsHelpers.hpp BigFileStorage.cpp BigFileStorage.hpp PHKVStorage.cpp PHKVStorage.hpp StorageVolume.cpp StorageVolume.hpp)
 
 target_link_libraries(phkvstorage Boost::system Boost::filesystem fmt::fmt spdlog::spdlog)
 target_include_directories(phkvstorage PUBLIC ${PROJECT_SOURCE_DIR})

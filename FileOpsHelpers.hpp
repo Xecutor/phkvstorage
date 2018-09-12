@@ -56,7 +56,7 @@ inline void getUIntFromBuf(InputBinBuffer& in, uint64_t& value)
 template<class T>
 inline void writeUIntAt(IRandomAccessFile& file, IRandomAccessFile::OffsetType offset, T value)
 {
-    static_assert(std::is_integral_v<T>, "writeUIntAt is for integral types only");
+    static_assert(std::is_integral<T>::value, "writeUIntAt is for integral types only");
     static_assert(sizeof(T) <= 8, "Unsupported int type size");
     std::array<uint8_t, sizeof(T)> data;
     OutputBinBuffer outBuf(boost::asio::buffer(data));
@@ -72,7 +72,7 @@ inline void writeUIntAt(IRandomAccessFile& file, IRandomAccessFile::OffsetType o
 template<class T>
 void readUIntAt(IRandomAccessFile& file, IRandomAccessFile::OffsetType offset, T& value)
 {
-    static_assert(std::is_integral_v<T>, "readUIntAt is for integral types only");
+    static_assert(std::is_integral<T>::value, "readUIntAt is for integral types only");
     static_assert(sizeof(T) <= 8, "Unsupported int type size");
     std::array<uint8_t, sizeof(T)> data;
     file.seek(offset);

@@ -14,7 +14,7 @@ struct formatter<std::array<T, N>> {
         return ctx.begin();
     }
 
-    template<typename FormatContext, typename = std::enable_if_t<std::is_integral_v<T>>>
+    template<typename FormatContext, typename = std::enable_if_t<std::is_integral<T>::value>>
     auto format(const std::array<T, N>& arr, FormatContext& ctx)
     {
         auto fmt = format_to(ctx.begin(), "[");

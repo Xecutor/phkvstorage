@@ -16,11 +16,6 @@ struct FileVersion{
         return sizeof(major) + sizeof(minor);
     }
 
-    static constexpr bool isFixedSize()
-    {
-        return true;
-    }
-
     void serialize(OutputBinBuffer& out)const
     {
         out.writeU16(major);

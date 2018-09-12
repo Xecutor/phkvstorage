@@ -20,22 +20,25 @@ public:
 TEST_F(BigFileStorageTest, CreateOpen)
 {
     {
-        phkvs::BigFileStorage storage(phkvs::FileSystem::createFileUnique(filename));
+        auto file = phkvs::FileSystem::createFileUnique(filename);
+        ASSERT_TRUE(file);
         addToCleanup(filename);
-        storage.create();
+        auto storage = phkvs::BigFileStorage::create(std::move(file));
     }
 
     {
-        phkvs::BigFileStorage storage(phkvs::FileSystem::openFileUnique(filename));
-        storage.open();
+        auto file = phkvs::FileSystem::openFileUnique(filename);
+        ASSERT_TRUE(file);
+        auto storage = phkvs::BigFileStorage::open(std::move(file));
     }
 }
 
 TEST_F(BigFileStorageTest, WriteRead)
 {
-    phkvs::BigFileStorage storage(phkvs::FileSystem::createFileUnique(filename));
+    auto file = phkvs::FileSystem::createFileUnique(filename);
+    ASSERT_TRUE(file);
     addToCleanup(filename);
-    storage.create();
+    auto storage = phkvs::BigFileStorage::create(std::move(file));
     using OffsetType = phkvs::BigFileStorage::OffsetType;
     std::vector<std::pair<OffsetType, std::vector<uint8_t>>> offsetAndData;
     std::set<OffsetType> usedOffsets;
@@ -47,7 +50,7 @@ TEST_F(BigFileStorageTest, WriteRead)
         {
             v = static_cast<uint8_t>(++j);
         }
-        auto offset = storage.allocateAndWrite(boost::asio::buffer(data));
+        auto offset = storage->allocateAndWrite(boost::asio::buffer(data));
         ASSERT_EQ(usedOffsets.find(offset), usedOffsets.end());
         usedOffsets.insert(offset);
         offsetAndData.emplace_back(offset, std::move(data));
@@ -57,7 +60,7 @@ TEST_F(BigFileStorageTest, WriteRead)
         auto offset = p.first;
         auto& data = p.second;
         std::vector<uint8_t> readData(data.size(), 0);
-        storage.read(offset, boost::asio::buffer(readData));
+        storage->read(offset, boost::asio::buffer(readData));
         EXPECT_EQ(data, readData);
     }
 
@@ -71,7 +74,7 @@ TEST_F(BigFileStorageTest, WriteRead)
             ++v;
         }
         //overwrite with the same size
-        storage.overwrite(offset, boost::asio::buffer(data));
+        storage->overwrite(offset, boost::asio::buffer(data));
     }
 
     //read&check
@@ -80,7 +83,7 @@ TEST_F(BigFileStorageTest, WriteRead)
         auto offset = p.first;
         auto& data = p.second;
         std::vector<uint8_t> readData(data.size(), 0);
-        storage.read(offset, boost::asio::buffer(readData));
+        storage->read(offset, boost::asio::buffer(readData));
         EXPECT_EQ(data, readData);
     }
 
@@ -102,7 +105,7 @@ TEST_F(BigFileStorageTest, WriteRead)
                 data.erase(data.end() - 400);
             }
             ++idx;
-            storage.overwrite(offset, boost::asio::buffer(data));
+            storage->overwrite(offset, boost::asio::buffer(data));
         }
     }
 
@@ -112,7 +115,7 @@ TEST_F(BigFileStorageTest, WriteRead)
         auto offset = p.first;
         auto& data = p.second;
         std::vector<uint8_t> readData(data.size(), 0);
-        storage.read(offset, boost::asio::buffer(readData));
+        storage->read(offset, boost::asio::buffer(readData));
         EXPECT_EQ(data, readData);
     }
 
@@ -120,7 +123,7 @@ TEST_F(BigFileStorageTest, WriteRead)
     for(auto& p:offsetAndData)
     {
         auto offset = p.first;
-        storage.free(offset);
+        storage->free(offset);
     }
 
 }

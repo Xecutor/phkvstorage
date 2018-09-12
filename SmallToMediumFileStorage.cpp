@@ -5,7 +5,29 @@
 
 namespace phkvs {
 
-void SmallToMediumFileStorage::open()
+const FileMagic SmallToMediumFileStorage::s_magic{'S', 'M', 'F', 'S'};
+const FileVersion SmallToMediumFileStorage::s_currentVersion{0x0001, 0x0000};
+
+struct SmallToMediumFileStorage::PrivateKey{};
+
+std::unique_ptr<SmallToMediumFileStorage> SmallToMediumFileStorage::open(FileSystem::UniqueFilePtr&& file)
+{
+    PrivateKey pkey;
+    auto rv = std::make_unique<SmallToMediumFileStorage>(pkey, std::move(file));
+    rv->openImpl();
+    return rv;
+}
+
+std::unique_ptr<SmallToMediumFileStorage> SmallToMediumFileStorage::create(FileSystem::UniqueFilePtr&& file)
+{
+    PrivateKey pkey;
+    auto rv = std::make_unique<SmallToMediumFileStorage>(pkey, std::move(file));
+    rv->createImpl();
+    return rv;
+}
+
+
+void SmallToMediumFileStorage::openImpl()
 {
     auto fileSize = m_file->seekEnd();
     if(fileSize < k_headerSize)
@@ -23,15 +45,17 @@ void SmallToMediumFileStorage::open()
 
     InputBinBuffer in(buf);
 
-    MagicType magic{};
-    FileVersion version{0, 0};
-    in.readArray(magic);
+    FileMagic magic;
+
+    magic.deserialize(in);
     if(magic != s_magic)
     {
         throw std::runtime_error(
             fmt::format("SmallToMediumFileStorage: invalid magic in file {}. Expected {}, but found {}",
                         m_file->getFilename().string(), s_magic, magic));
     }
+
+    FileVersion version{0, 0};
     version.deserialize(in);
     if(version != s_currentVersion)
     {
@@ -45,7 +69,7 @@ void SmallToMediumFileStorage::open()
     }
 }
 
-void SmallToMediumFileStorage::create()
+void SmallToMediumFileStorage::createImpl()
 {
     auto fileSize = m_file->seekEnd();
     if(fileSize != 0)
@@ -56,7 +80,7 @@ void SmallToMediumFileStorage::create()
     std::array<uint8_t, k_headerSize> headerData{};
     auto buf = boost::asio::buffer(headerData);
     OutputBinBuffer out(buf);
-    out.writeArray(s_magic);
+    s_magic.serialize(out);
     s_currentVersion.serialize(out);
     for(size_t i = 0; i < k_slotsCount; ++i)
     {

@@ -16,22 +16,24 @@ public:
 TEST_F(SmallToMediumStorageTest, CreateOpen)
 {
     {
-        phkvs::SmallToMediumFileStorage storage(phkvs::FileSystem::createFileUnique(filename));
+        auto file = phkvs::FileSystem::createFileUnique(filename);
+        ASSERT_TRUE(file);
+        auto storage = phkvs::SmallToMediumFileStorage::create(std::move(file));
         addToCleanup(filename);
-        storage.create();
     }
 
     {
-        phkvs::SmallToMediumFileStorage storage(phkvs::FileSystem::openFileUnique(filename));
-        storage.open();
+        auto storage = phkvs::SmallToMediumFileStorage::open(phkvs::FileSystem::openFileUnique(filename));
     }
 }
 
 TEST_F(SmallToMediumStorageTest, CreateWriteRead)
 {
-    phkvs::SmallToMediumFileStorage storage(phkvs::FileSystem::createFileUnique(filename));
+    auto file = phkvs::FileSystem::createFileUnique(filename);
+    ASSERT_TRUE(file);
     addToCleanup(filename);
-    storage.create();
+    auto storage = phkvs::SmallToMediumFileStorage::create(std::move(file));
+
     using OffsetType = phkvs::SmallToMediumFileStorage::OffsetType;
     std::vector<std::pair<OffsetType, std::vector<uint8_t>>> offsetAndData;
     std::set<OffsetType> usedOffsets;
@@ -47,7 +49,7 @@ TEST_F(SmallToMediumStorageTest, CreateWriteRead)
         {
             v = static_cast<uint8_t>(++j);
         }
-        auto offset = storage.allocateAndWrite(boost::asio::buffer(data));
+        auto offset = storage->allocateAndWrite(boost::asio::buffer(data));
         ASSERT_EQ(usedOffsets.find(offset), usedOffsets.end());
         usedOffsets.insert(offset);
         offsetAndData.emplace_back(offset, std::move(data));
@@ -59,7 +61,7 @@ TEST_F(SmallToMediumStorageTest, CreateWriteRead)
         auto offset = p.first;
         auto& data = p.second;
         std::vector<uint8_t> readData(data.size(), 0);
-        storage.read(offset, boost::asio::buffer(readData));
+        storage->read(offset, boost::asio::buffer(readData));
         EXPECT_EQ(data, readData);
     }
 
@@ -73,7 +75,7 @@ TEST_F(SmallToMediumStorageTest, CreateWriteRead)
             ++v;
         }
         //overwrite with the same size
-        EXPECT_EQ(offset, storage.overwrite(offset, data.size(), boost::asio::buffer(data)));
+        EXPECT_EQ(offset, storage->overwrite(offset, data.size(), boost::asio::buffer(data)));
     }
 
     //read&check
@@ -82,7 +84,7 @@ TEST_F(SmallToMediumStorageTest, CreateWriteRead)
         auto offset = p.first;
         auto& data = p.second;
         std::vector<uint8_t> readData(data.size(), 0);
-        storage.read(offset, boost::asio::buffer(readData));
+        storage->read(offset, boost::asio::buffer(readData));
         EXPECT_EQ(data, readData);
     }
 
@@ -103,7 +105,7 @@ TEST_F(SmallToMediumStorageTest, CreateWriteRead)
             data.push_back(static_cast<uint8_t>(i));
         }
         //overwrite with bigger data
-        OffsetType newOffset = storage.overwrite(offset, oldSize, boost::asio::buffer(data));
+        OffsetType newOffset = storage->overwrite(offset, oldSize, boost::asio::buffer(data));
         EXPECT_NE(offset, newOffset) << "oldSize=="<<oldSize<<", newSize="<<data.size();
         p.first = newOffset;
         usedOffsets.insert(newOffset);
@@ -115,7 +117,7 @@ TEST_F(SmallToMediumStorageTest, CreateWriteRead)
         auto offset = p.first;
         auto& data = p.second;
         std::vector<uint8_t> readData(data.size(), 0);
-        storage.read(offset, boost::asio::buffer(readData));
+        storage->read(offset, boost::asio::buffer(readData));
         EXPECT_EQ(data, readData);
     }
 
@@ -124,14 +126,14 @@ TEST_F(SmallToMediumStorageTest, CreateWriteRead)
     {
         auto offset = p.first;
         auto& data = p.second;
-        storage.freeSlot(offset, data.size());
+        storage->freeSlot(offset, data.size());
     }
 
     //check that free worked
     for(auto& p:offsetAndData)
     {
         auto& data = p.second;
-        auto offset = storage.allocateAndWrite(boost::asio::buffer(data));
+        auto offset = storage->allocateAndWrite(boost::asio::buffer(data));
         //we freed all previously used offsets, so all new allocations
         //should reuse previous offsets.
         EXPECT_NE(usedOffsets.find(offset), usedOffsets.end());
