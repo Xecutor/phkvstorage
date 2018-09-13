@@ -11,6 +11,9 @@ struct FileMagic{
     using Type = std::array<uint8_t,4>;
     Type magic{};
 
+    FileMagic()=default;
+    FileMagic(const Type& argMagic):magic(argMagic){}
+
     static constexpr size_t binSize()
     {
         return sizeof(magic);
@@ -50,7 +53,7 @@ namespace fmt{
 template <>
 struct formatter<phkvs::FileMagic> {
     template <typename ParseContext>
-    constexpr auto parse(ParseContext &ctx) { return ctx.begin(); }
+    constexpr auto parse(ParseContext &ctx) const { return ctx.begin(); }
 
     template <typename FormatContext>
     auto format(const phkvs::FileMagic& fileMagic, FormatContext &ctx) {

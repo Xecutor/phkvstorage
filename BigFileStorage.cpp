@@ -6,7 +6,7 @@
 
 namespace phkvs {
 
-const FileMagic BigFileStorage::s_magic {'B', 'G', 'F', 'S'};
+const FileMagic BigFileStorage::s_magic {{'B', 'G', 'F', 'S'}};
 const FileVersion BigFileStorage::s_currentVersion { 0x0001, 0x0000};
 
 struct BigFileStorage::PrivateKey{};

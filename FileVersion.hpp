@@ -44,7 +44,7 @@ namespace fmt{
 template <>
 struct formatter<phkvs::FileVersion> {
     template <typename ParseContext>
-    constexpr auto parse(ParseContext &ctx) { return ctx.begin(); }
+    constexpr auto parse(ParseContext &ctx) const { return ctx.begin(); }
 
     template <typename FormatContext>
     auto format(const phkvs::FileVersion& ver, FormatContext &ctx) {

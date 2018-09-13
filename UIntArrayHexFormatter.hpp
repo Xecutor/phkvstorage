@@ -9,7 +9,7 @@ namespace fmt {
 template<class T, size_t N>
 struct formatter<std::array<T, N>> {
     template<typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
+    constexpr auto parse(ParseContext& ctx) const
     {
         return ctx.begin();
     }

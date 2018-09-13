@@ -5,7 +5,7 @@
 
 namespace phkvs {
 
-const FileMagic SmallToMediumFileStorage::s_magic{'S', 'M', 'F', 'S'};
+const FileMagic SmallToMediumFileStorage::s_magic{{'S', 'M', 'F', 'S'}};
 const FileVersion SmallToMediumFileStorage::s_currentVersion{0x0001, 0x0000};
 
 struct SmallToMediumFileStorage::PrivateKey{};
