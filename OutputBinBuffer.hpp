@@ -65,6 +65,13 @@ public:
         buf += amount;
     }
 
+    void fill(size_t amount, uint8_t value = 0)
+    {
+        checkRemainingSpaceAndThrow(amount);
+        memset(m_buf.data(), 0, amount);
+        m_buf += amount;
+    }
+
     size_t remainingSpace()const
     {
         return m_buf.size();

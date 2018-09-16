@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <BigFileStorage.hpp>
+#include <test_bigfilestorage.hpp>
 
 #include "FilesCleanupFixture.hpp"
 

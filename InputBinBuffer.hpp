@@ -73,6 +73,12 @@ public:
         return reinterpret_cast<double&>(rv);
     }
 
+    void skip(size_t amount)
+    {
+        checkRemainingSpaceAndThrow(amount);
+        m_buf += amount;
+    }
+
     size_t remainingSpace() const
     {
         return m_buf.size();
