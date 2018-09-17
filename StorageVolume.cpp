@@ -3,6 +3,7 @@
 
 #include "KeyPathUtil.hpp"
 #include "FileOpsHelpers.hpp"
+#include "StringViewFormatter.hpp"
 
 #include <spdlog/sinks/null_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -112,7 +113,8 @@ void StorageVolume::initStdoutLogger()
 {
     if(!spdlog::get(s_loggingCategory))
     {
-        spdlog::stdout_color_mt(s_loggingCategory);
+        auto log = spdlog::stdout_color_mt(s_loggingCategory);
+        log->set_level(spdlog::level::debug);
     }
 }
 
@@ -578,7 +580,7 @@ void StorageVolume::store(const std::string& keyPath, const StorageVolume::Value
             if(entry.type != EntryType::dir)
             {
                 throw std::runtime_error(
-                        fmt::format("StorageVolume: entry {:.{}} is not dir.", dir.data(), dir.length()));
+                        fmt::format("StorageVolume: entry {} is not dir.", dir));
             }
             offset = boost::get<uint64_t>(entry.value.value);
         }
@@ -610,7 +612,7 @@ boost::optional<StorageVolume::ValueType> StorageVolume::lookup(const std::strin
             if(entry.type != EntryType::dir)
             {
                 throw std::runtime_error(
-                        fmt::format("StorageVolume: entry {:.{}} is not dir.", dir.data(), dir.length()));
+                        fmt::format("StorageVolume: entry {} is not dir.", dir));
             }
             offset = boost::get<uint64_t>(entry.value.value);
         }

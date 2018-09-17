@@ -26,10 +26,9 @@ find_package(Boost 1.67 REQUIRED COMPONENTS system filesystem)
 find_package(fmt CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 
-#target_link_libraries(buf PRIVATE Boost::system fmt::fmt spdlog::spdlog)
-
 add_library(phkvstorage FileSystem.cpp SmallToMediumFileStorage.cpp SmallToMediumFileStorage.hpp FileVersion.hpp UIntArrayHexFormatter.hpp 
-    FileOpsHelpers.hpp BigFileStorage.cpp PHKVStorage.cpp PHKVStorage.hpp StorageVolume.cpp StorageVolume.hpp KeyPathUtil.hpp )
+    FileOpsHelpers.hpp BigFileStorage.cpp PHKVStorage.cpp PHKVStorage.hpp StorageVolume.cpp StorageVolume.hpp
+    KeyPathUtil.hpp StringViewFormatter.hpp)
 
 target_link_libraries(phkvstorage Boost::system Boost::filesystem fmt::fmt spdlog::spdlog)
 target_include_directories(phkvstorage PUBLIC ${PROJECT_SOURCE_DIR})
@@ -42,3 +41,4 @@ add_test(NAME bufferstest COMMAND test_buffers)
 add_test(NAME filetest COMMAND test_file)
 add_test(NAME stmfilestoragetest COMMAND test_stmfilestorage)
 add_test(NAME bigfilestoragetest COMMAND test_bigfilestorage)
+add_test(NAME storagevolumetest COMMAND test_volume)

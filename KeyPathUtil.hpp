@@ -7,7 +7,7 @@
 
 namespace phkvs{
 
-std::vector<boost::string_view> splitKeyPath(const std::string& keyPath)
+std::vector<boost::string_view> splitKeyPath(const boost::string_view& keyPath)
 {
     std::vector<boost::string_view> result;
     std::string::size_type lastPos = !keyPath.empty() && keyPath[0] == '/' ? 1 : 0;
@@ -16,10 +16,10 @@ std::vector<boost::string_view> splitKeyPath(const std::string& keyPath)
         auto pos = keyPath.find('/', lastPos);
         if(pos==std::string::npos)
         {
-            result.emplace_back(keyPath.c_str() + lastPos);
+            result.emplace_back(keyPath.data() + lastPos);
             break;
         }
-        result.emplace_back(keyPath.c_str() + lastPos, pos - lastPos);
+        result.emplace_back(keyPath.data() + lastPos, pos - lastPos);
         lastPos = pos + 1;
     }while(lastPos<keyPath.length());
     return result;

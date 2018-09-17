@@ -32,7 +32,8 @@ public:
 
     VolumeTest()
     {
-        phkvs::StorageVolume::initFileLogger("test.log", 100000, 3);
+        //phkvs::StorageVolume::initFileLogger("test.log", 100000, 3);
+        //phkvs::StorageVolume::initStdoutLogger();
         createStorageVolume();
     }
 
