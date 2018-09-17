@@ -7,10 +7,12 @@
 #include <boost/optional.hpp>
 #include <boost/utility/string_view.hpp>
 
+#include <spdlog/spdlog.h>
+
 #include "IRandomAccessFile.hpp"
 #include "FileSystem.hpp"
 #include "SmallToMediumFileStorage.hpp"
-#include "test_bigfilestorage.hpp"
+#include "BigFileStorage.hpp"
 
 
 namespace phkvs{
@@ -30,12 +32,18 @@ public:
     void store(const std::string& keyPath, const ValueType& value);
     boost::optional<ValueType> lookup(const std::string& keyPath);
 
+    void dump(const std::function<void(const std::string&)>& out);
+
+    static void initFileLogger(const boost::filesystem::path& filePath, size_t maxSize, size_t maxFiles);
+    static void initStdoutLogger();
+
 private:
 
     using OffsetType = IRandomAccessFile::OffsetType;
 
     static const FileMagic s_magic;
     static const FileVersion s_currentVersion;
+    static const char* s_loggingCategory;
 
     static constexpr size_t k_headerSize = FileMagic::binSize() + FileVersion::binSize() +
         sizeof(OffsetType) + sizeof(OffsetType);
@@ -293,6 +301,8 @@ private:
     void listInsert(OffsetType headOffset, Entry&& entry);
     bool listLookup(OffsetType headOffset, const boost::string_view& key, Entry& entry);
 
+    void dumpList(OffsetType headOffset, size_t indent, const std::function<void(const std::string&)>& out);
+
     FileSystem::UniqueFilePtr m_mainFile;
     OffsetType m_firstFreeListNode = 0;
     OffsetType m_firstFreeHeadListNode = 0;
@@ -300,6 +310,12 @@ private:
     std::unique_ptr<BigFileStorage> m_bigStorage;
 
     std::mt19937 m_random;
+
+    using LoggerType = decltype(spdlog::get({}));
+
+    LoggerType& getLogger();
+
+    LoggerType m_log;
 
 
     struct PrivateKey;

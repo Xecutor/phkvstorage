@@ -4,10 +4,15 @@
 #include "KeyPathUtil.hpp"
 #include "FileOpsHelpers.hpp"
 
+#include <spdlog/sinks/null_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/rotating_file_sink.h>
+
 namespace phkvs {
 
 const FileMagic StorageVolume::s_magic = {{'P', 'H', 'V', 'L'}};
 const FileVersion StorageVolume::s_currentVersion = {0x0001, 0x0000};
+const char* StorageVolume::s_loggingCategory = "StorageVolume";
 
 struct StorageVolume::PrivateKey {
 };
@@ -42,7 +47,7 @@ void StorageVolume::openImpl()
     if(fileSize < k_headerSize)
     {
         throw std::runtime_error(
-            fmt::format("Unexpected file size of {} for BigFileStorage:{}",
+                fmt::format("Unexpected file size of {} for BigFileStorage:{}",
                         m_mainFile->getFilename().string(), fileSize));
     }
     std::array<uint8_t, k_headerSize> headerData{};
@@ -56,7 +61,7 @@ void StorageVolume::openImpl()
     if(magic != s_magic)
     {
         throw std::runtime_error(
-            fmt::format("BigFileStorage: invalid magic in file {}. Expected {}, but found {}",
+                fmt::format("BigFileStorage: invalid magic in file {}. Expected {}, but found {}",
                         m_mainFile->getFilename().string(), s_magic, magic));
     }
 
@@ -65,7 +70,7 @@ void StorageVolume::openImpl()
     if(version != s_currentVersion)
     {
         throw std::runtime_error(
-            fmt::format("BigFileStorage: invalid version of file {}. Expected {}, but found {}",
+                fmt::format("BigFileStorage: invalid version of file {}. Expected {}, but found {}",
                         m_mainFile->getFilename().string(), s_magic, magic));
     }
     m_firstFreeHeadListNode = in.readU64();
@@ -78,7 +83,7 @@ void StorageVolume::createImpl()
     if(fileSize != 0)
     {
         throw std::runtime_error(fmt::format("File {} must be empty for StorageVolume:{}",
-                                             m_mainFile->getFilename().string(), fileSize));
+                m_mainFile->getFilename().string(), fileSize));
     }
     std::array<uint8_t, k_headerSize + SkipListNode::binSize()> headerData{};
     auto buf = boost::asio::buffer(headerData);
@@ -91,6 +96,39 @@ void StorageVolume::createImpl()
     rootNode.nexts.resize(k_maxListHeight);
     storeHeadNode(out, rootNode);
     m_mainFile->write(buf);
+}
+
+void StorageVolume::initFileLogger(const boost::filesystem::path& filePath, size_t maxSize, size_t maxFiles)
+{
+    if(!spdlog::get(s_loggingCategory))
+    {
+        auto log = spdlog::default_factory::create<spdlog::sinks::rotating_file_sink_mt>(s_loggingCategory, filePath.string(),
+                maxSize, maxFiles);
+        log->set_level(spdlog::level::debug);
+    }
+}
+
+void StorageVolume::initStdoutLogger()
+{
+    if(!spdlog::get(s_loggingCategory))
+    {
+        spdlog::stdout_color_mt(s_loggingCategory);
+    }
+}
+
+
+StorageVolume::LoggerType& StorageVolume::getLogger()
+{
+    if(m_log)
+    {
+        return m_log;
+    }
+    m_log = spdlog::get(s_loggingCategory);
+    if(!m_log)
+    {
+        m_log = spdlog::default_factory::create<spdlog::sinks::null_sink_mt>(s_loggingCategory);
+    }
+    return m_log;
 }
 
 void StorageVolume::storeKey(OutputBinBuffer& out, KeyInfo& key)
@@ -109,7 +147,8 @@ void StorageVolume::storeKey(OutputBinBuffer& out, KeyInfo& key)
         {
             key.offset = m_stmStorage->allocateAndWrite(boost::asio::buffer(key.value));
         }
-    } else //long key
+    }
+    else //long key
     {
         if(key.offset == 0)
         {
@@ -135,7 +174,8 @@ void StorageVolume::loadKey(InputBinBuffer& in, bool isInplace, KeyInfo& key)
     if(isSmallToMediumLenght(keyLength))
     {
         m_stmStorage->read(offset, boost::asio::buffer(key.value));
-    } else
+    }
+    else
     {
         m_bigStorage->read(offset, boost::asio::buffer(key.value));
     }
@@ -204,10 +244,12 @@ void StorageVolume::storeValueType(OutputBinBuffer& out, ValueInfo& info, const 
         if(isInplaceLength(oldSize))
         {
             //do nothing
-        } else if(isSmallToMediumLenght(oldSize))
+        }
+        else if(isSmallToMediumLenght(oldSize))
         {
             m_stmStorage->freeSlot(info.offset, oldSize);
-        } else
+        }
+        else
         {
             m_bigStorage->free(info.offset);
         }
@@ -225,16 +267,19 @@ void StorageVolume::storeValueType(OutputBinBuffer& out, ValueInfo& info, const 
         if(info.offset)
         {
             info.offset = m_stmStorage->overwrite(info.offset, oldSize, boost::asio::buffer(value));
-        } else
+        }
+        else
         {
             info.offset = m_stmStorage->allocateAndWrite(boost::asio::buffer(value));
         }
-    } else
+    }
+    else
     {
         if(info.offset)
         {
             m_bigStorage->overwrite(info.offset, boost::asio::buffer(value));
-        } else
+        }
+        else
         {
             info.offset = m_bigStorage->allocateAndWrite(boost::asio::buffer(value));
         }
@@ -253,10 +298,12 @@ void StorageVolume::storeValueType(OutputBinBuffer& out, ValueInfo& info, const 
         if(isInplaceValueLength(oldSize))
         {
             //do nothing
-        } else if(isSmallToMediumLenght(oldSize))
+        }
+        else if(isSmallToMediumLenght(oldSize))
         {
             m_stmStorage->freeSlot(info.offset, oldSize);
-        } else
+        }
+        else
         {
             m_bigStorage->free(info.offset);
         }
@@ -275,16 +322,19 @@ void StorageVolume::storeValueType(OutputBinBuffer& out, ValueInfo& info, const 
         if(info.offset)
         {
             info.offset = m_stmStorage->overwrite(info.offset, oldSize, boost::asio::buffer(value));
-        } else
+        }
+        else
         {
             info.offset = m_stmStorage->allocateAndWrite(boost::asio::buffer(value));
         }
-    } else
+    }
+    else
     {
         if(info.offset)
         {
             m_bigStorage->overwrite(info.offset, boost::asio::buffer(value));
-        } else
+        }
+        else
         {
             info.offset = m_bigStorage->allocateAndWrite(boost::asio::buffer(value));
         }
@@ -325,7 +375,7 @@ void StorageVolume::loadValue(InputBinBuffer& in, ValueTypeIndex typeIndex, bool
             break;
         default:
             throw std::runtime_error(fmt::format("Invalid value if type index:{}",
-                                                 static_cast<uint8_t>(typeIndex)));
+                    static_cast<uint8_t>(typeIndex)));
     }
     size_t bytesRead = sizeBefore - in.remainingSpace();
     if(bytesRead < k_inplaceSize)
@@ -348,7 +398,8 @@ void StorageVolume::loadValueString(InputBinBuffer& in, bool isInplace, ValueInf
     if(isSmallToMediumLenght(length))
     {
         m_stmStorage->read(value.offset, boost::asio::buffer(boost::get<std::string&>(value.value)));
-    } else
+    }
+    else
     {
         m_bigStorage->read(value.offset, boost::asio::buffer(boost::get<std::string&>(value.value)));
     }
@@ -368,7 +419,8 @@ void StorageVolume::loadValueVector(InputBinBuffer& in, bool isInplace, ValueInf
     if(isSmallToMediumLenght(length))
     {
         m_stmStorage->read(value.offset, boost::asio::buffer(boost::get<std::vector<uint8_t>&>(value.value)));
-    } else
+    }
+    else
     {
         m_bigStorage->read(value.offset, boost::asio::buffer(boost::get<std::vector<uint8_t>&>(value.value)));
     }
@@ -406,7 +458,8 @@ void StorageVolume::loadEntry(InputBinBuffer& in, Entry& entry)
     if(flags & static_cast<uint8_t>(EntryFlags::dir))
     {
         entry.type = EntryType::dir;
-    } else
+    }
+    else
     {
         entry.type = EntryType::key;
     }
@@ -519,12 +572,13 @@ void StorageVolume::store(const std::string& keyPath, const StorageVolume::Value
             entry.setDir(std::string(dir.data(), dir.length()), newDirOffset);
             listInsert(offset, std::move(entry));
             offset = newDirOffset;
-        } else
+        }
+        else
         {
             if(entry.type != EntryType::dir)
             {
                 throw std::runtime_error(
-                    fmt::format("StorageVolume: entry {:.{}} is not dir.", dir.data(), dir.length()));
+                        fmt::format("StorageVolume: entry {:.{}} is not dir.", dir.data(), dir.length()));
             }
             offset = boost::get<uint64_t>(entry.value.value);
         }
@@ -550,12 +604,13 @@ boost::optional<StorageVolume::ValueType> StorageVolume::lookup(const std::strin
         if(!listLookup(offset, dir, entry))
         {
             return {};
-        } else
+        }
+        else
         {
             if(entry.type != EntryType::dir)
             {
                 throw std::runtime_error(
-                    fmt::format("StorageVolume: entry {:.{}} is not dir.", dir.data(), dir.length()));
+                        fmt::format("StorageVolume: entry {:.{}} is not dir.", dir.data(), dir.length()));
             }
             offset = boost::get<uint64_t>(entry.value.value);
         }
@@ -649,7 +704,8 @@ StorageVolume::storeNodeNexts(OutputBinBuffer& out, OffsetType offset, const Nex
     if(nexts.size() == 1)
     {
         out.writeU64(nexts[0]);
-    } else
+    }
+    else
     {
         std::array<OffsetType, k_maxListHeight> data{};
         auto buf = boost::asio::buffer(data);
@@ -664,7 +720,8 @@ StorageVolume::storeNodeNexts(OutputBinBuffer& out, OffsetType offset, const Nex
         if(offset)
         {
             offset = m_stmStorage->overwrite(offset, bytesWritten, buf);
-        } else
+        }
+        else
         {
             offset = m_stmStorage->allocateAndWrite(buf);
         }
@@ -687,12 +744,14 @@ void StorageVolume::loadNodeNextsAndEdgeKey(OffsetType offset, NextsVector& next
     {
         loadEntryKey(in, key);
         in.skip((k_entriesPerNode - 1) * Entry::binSize());
-    } else if(whichKey == EdgeKey::last)
+    }
+    else if(whichKey == EdgeKey::last)
     {
         in.skip((entries - 1) * Entry::binSize());
         loadEntryKey(in, key);
         in.skip((k_entriesPerNode - entries) * Entry::binSize());
-    } else // none
+    }
+    else // none
     {
         in.skip(k_entriesPerNode * Entry::binSize());
     }
@@ -715,12 +774,15 @@ void StorageVolume::findPath(OffsetType headOffset, ListPath& path, const boost:
         while(currentNexts[level] != 0)
         {
             loadNodeNextsAndEdgeKey(currentNexts[level], nextNexts, EdgeKey::last, nextLastKey);
-            if(key <= nextLastKey)
+            if(key > nextLastKey)
+            {
+                offset = currentNexts[level];
+                currentNexts = nextNexts;
+            }
+            else
             {
                 break;
             }
-            offset = currentNexts[level];
-            currentNexts = nextNexts;
         }
         path[level] = offset;
     }
@@ -730,11 +792,10 @@ size_t StorageVolume::generateNewLevel()
 {
     uint32_t value = m_random();
     size_t newLevel = 1;
-    uint32_t bit = 1;
-    while((value & bit) && value < k_maxListHeight)
+    while((value & 1) && newLevel < k_maxListHeight)
     {
         ++newLevel;
-        bit <<= 1;
+        value >>= 1;
     }
     return newLevel;
 }
@@ -746,9 +807,15 @@ void StorageVolume::listInsert(OffsetType headOffset, Entry&& entry)
 
     SkipListNode node;
     OffsetType nodeOffset = path[0];
-    loadHeadNode(headOffset, node);
+    loadHeadNode(nodeOffset, node);
 
-    if(!node.nexts[0])//empty list
+    nodeOffset = node.nexts[0];
+    if(!nodeOffset && path[0] != headOffset)
+    {
+        nodeOffset = path[0];
+    }
+
+    if(!nodeOffset)//empty list
     {
         SkipListNode newNode;
         OffsetType newNodeOffset = allocateSkipListNode();
@@ -765,8 +832,13 @@ void StorageVolume::listInsert(OffsetType headOffset, Entry&& entry)
         storeNode(newNodeOffset, newNode);
         return;
     }
-    nodeOffset = node.nexts[0];
+
     loadNode(nodeOffset, node);
+
+    getLogger()->debug("inserting {} into {} ... {} @ {}", entry.key.value,
+            node.entries.front().key.value,
+            node.entries.back().key.value, nodeOffset);
+
 
     auto it = std::lower_bound(node.entries.begin(), node.entries.end(), entry, EntryKeyComparator{});
     if(it != node.entries.end() && it->key.value == entry.key.value)
@@ -787,26 +859,35 @@ void StorageVolume::listInsert(OffsetType headOffset, Entry&& entry)
     }
     SkipListNode newNode;
     OffsetType newNodeOffset = allocateSkipListNode();
+    getLogger()->debug("newNodeOffset={}", newNodeOffset);
 
-    auto middle = node.entries.begin() + node.entries.size() / 2;
-
-    bool isInNewNode = it >= middle;
-    size_t indexInNewNode = 0;
-    if(isInNewNode)
+    if(it != node.entries.end())
     {
-        indexInNewNode = (it - node.entries.begin()) - node.entries.size() / 2;
+        auto middle = node.entries.begin() + node.entries.size() / 2;
+
+        bool isInNewNode = it >= middle;
+        size_t indexInNewNode = 0;
+        if(isInNewNode)
+        {
+            indexInNewNode = (it - node.entries.begin()) - node.entries.size() / 2;
+        }
+
+        std::move(middle, node.entries.end(), std::back_inserter(newNode.entries));
+        node.entries.erase(middle, node.entries.end());
+
+        if(isInNewNode)
+        {
+            it = newNode.entries.begin() + indexInNewNode;
+            newNode.entries.insert(it, std::move(entry));
+        }
+        else
+        {
+            node.entries.insert(it, std::move(entry));
+        }
     }
-
-    std::move(middle, node.entries.end(), std::back_inserter(newNode.entries));
-    node.entries.erase(middle, node.entries.end());
-
-    if(isInNewNode)
+    else
     {
-        it = newNode.entries.begin() + indexInNewNode;
-        newNode.entries.insert(it, std::move(entry));
-    } else
-    {
-        node.entries.insert(it, std::move(entry));
+        newNode.entries.push_back(std::move(entry));
     }
 
     size_t newLevel = generateNewLevel();
@@ -819,11 +900,20 @@ void StorageVolume::listInsert(OffsetType headOffset, Entry&& entry)
         {
             newNode.nexts[i] = node.nexts[i];
             node.nexts[i] = newNodeOffset;
-        } else
+        }
+        else
         {
-            newNode.nexts[i] = tempNode.nexts[i];
-            tempNode.nexts[i] = newNodeOffset;
-            storeHeadNode(path[i], tempNode);
+            if(path[i] == nodeOffset)
+            {
+                newNode.nexts[i] = node.nexts[i];
+                node.nexts[i] = newNodeOffset;
+            }
+            else
+            {
+                newNode.nexts[i] = tempNode.nexts[i];
+                tempNode.nexts[i] = newNodeOffset;
+                storeHeadNode(path[i], tempNode);
+            }
         }
     }
     storeNode(nodeOffset, node);
@@ -847,7 +937,8 @@ bool StorageVolume::listLookup(OffsetType headOffset, const boost::string_view& 
             {
                 nodeOffset = currentNexts[level];
                 currentNexts = nextNexts;
-            } else
+            }
+            else
             {
                 break;
             }
@@ -865,6 +956,38 @@ bool StorageVolume::listLookup(OffsetType headOffset, const boost::string_view& 
     }
     entry = std::move(*it);
     return true;
+}
+
+void StorageVolume::dump(const std::function<void(const std::string&)>& out)
+{
+    dumpList(k_rootListOffset, 0, out);
+}
+
+void StorageVolume::dumpList(OffsetType headOffset, size_t indent, const std::function<void(const std::string&)>& out)
+{
+    SkipListNode node;
+    loadHeadNode(headOffset, node);
+    OffsetType offset = node.nexts[0];
+    while(offset)
+    {
+        loadNode(offset, node);
+        out(fmt::format("node@{}, height:{}:[\n", offset, node.nexts.size()));
+        for(auto& e:node.entries)
+        {
+            if(e.type == EntryType::key)
+            {
+                out(fmt::format("{:>{}}'{}':{},\n", "", indent, e.key.value,""));
+            }
+            else
+            {
+                out(fmt::format("{:>{}}'{}':{{,\n", "", indent, e.key.value));
+                dumpList(boost::get<uint64_t>(e.value.value), indent + 2, out);
+                out(fmt::format("{:>{}}}},\n", "", indent));
+            }
+        }
+        out("]\n");
+        offset = node.nexts[0];
+    }
 }
 
 }

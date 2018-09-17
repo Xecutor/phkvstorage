@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
-#include <SmallToMediumFileStorage.hpp>
-#include <test_bigfilestorage.hpp>
+
+#include "SmallToMediumFileStorage.hpp"
+#include "BigFileStorage.hpp"
 #include <StorageVolume.hpp>
 
 #include "FilesCleanupFixture.hpp"
@@ -31,6 +32,7 @@ public:
 
     VolumeTest()
     {
+        phkvs::StorageVolume::initFileLogger("test.log", 100000, 3);
         createStorageVolume();
     }
 
@@ -97,7 +99,7 @@ TEST_F(VolumeTest, InsertMultiple)
     for(auto& p:keyValue)
     {
         auto val = volume->lookup(p.first);
-        ASSERT_TRUE(val);
+        ASSERT_TRUE(val) << "Key " << p.first << " not found";
         ASSERT_EQ(boost::get<std::string>(*val), p.second);
     }
 }

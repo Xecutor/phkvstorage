@@ -1,4 +1,4 @@
-#include "test_bigfilestorage.hpp"
+#include "BigFileStorage.hpp"
 
 #include "UIntArrayHexFormatter.hpp"
 #include "FileOpsHelpers.hpp"
