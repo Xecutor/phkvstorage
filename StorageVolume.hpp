@@ -31,7 +31,8 @@ public:
 
     void store(const std::string& keyPath, const ValueType& value);
     boost::optional<ValueType> lookup(const std::string& keyPath);
-
+    void eraseKey(const std::string& keyPath);
+    void eraseDirRecursive(const std::string& dirPath);
     void dump(const std::function<void(const std::string&)>& out);
 
     static void initFileLogger(const boost::filesystem::path& filePath, size_t maxSize, size_t maxFiles);
@@ -163,6 +164,8 @@ private:
         }
     };
 
+    static size_t calcValueLength(ValueInfo& info);
+
     void loadValue(InputBinBuffer& in, ValueTypeIndex typeIndex, bool isInplace, ValueInfo& value);
     void loadValueString(InputBinBuffer& in, bool isInplace, ValueInfo& value);
     void loadValueVector(InputBinBuffer& in, bool isInplace, ValueInfo& value);
@@ -252,6 +255,8 @@ private:
     void loadEntry(InputBinBuffer& in, Entry& entry);
     void loadEntryKey(InputBinBuffer& in, std::string& key);
 
+    void freeEntry(Entry& entry);
+
     using EntriesVector = std::vector<Entry>;
     using NextsVector = std::vector<OffsetType>;
 
@@ -300,6 +305,11 @@ private:
 
     void listInsert(OffsetType headOffset, Entry&& entry);
     bool listLookup(OffsetType headOffset, const boost::string_view& key, Entry& entry);
+    void listErase(OffsetType head, EntryType type, const boost::string_view& key);
+
+    void listEraseRecursive(OffsetType nodeHeadOffset);
+
+    OffsetType followPath(const std::vector<boost::string_view>& path);
 
     void dumpList(OffsetType headOffset, size_t indent, const std::function<void(const std::string&)>& out);
 
@@ -314,7 +324,6 @@ private:
     using LoggerType = decltype(spdlog::get({}));
 
     LoggerType& getLogger();
-
     LoggerType m_log;
 
 

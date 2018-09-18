@@ -19,13 +19,13 @@ public:
     void createStorageVolume()
     {
         auto mainFile = phkvs::FileSystem::createFileUnique(volumeFilename);
-        ASSERT_NO_FATAL_FAILURE(mainFile);
+        ASSERT_TRUE(mainFile);
         addToCleanup(volumeFilename);
         auto stmFile = phkvs::FileSystem::createFileUnique(stmFilename);
-        ASSERT_NO_FATAL_FAILURE(stmFile);
+        ASSERT_TRUE(stmFile);
         addToCleanup(stmFilename);
         auto bigFile = phkvs::FileSystem::createFileUnique(bigFilename);
-        ASSERT_NO_FATAL_FAILURE(bigFile);
+        ASSERT_TRUE(bigFile);
         addToCleanup(bigFilename);
         volume = phkvs::StorageVolume::create(std::move(mainFile), std::move(stmFile), std::move(bigFile));
     }
@@ -102,5 +102,23 @@ TEST_F(VolumeTest, InsertMultiple)
         auto val = volume->lookup(p.first);
         ASSERT_TRUE(val) << "Key " << p.first << " not found";
         ASSERT_EQ(boost::get<std::string>(*val), p.second);
+    }
+}
+
+TEST_F(VolumeTest, InsertErase)
+{
+    std::vector<std::pair<std::string, std::string>> keyValue;
+    for(size_t i=0;i<100;++i)
+    {
+        keyValue.emplace_back(fmt::format("/key{:03}", i), fmt::format("value{}", i));
+        volume->store(keyValue.back().first, keyValue.back().second);
+    }
+    for(auto& p:keyValue)
+    {
+        volume->eraseKey(p.first);
+    }
+    for(auto& p:keyValue)
+    {
+        EXPECT_FALSE(volume->lookup(p.first));
     }
 }
