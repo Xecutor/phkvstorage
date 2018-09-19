@@ -22,6 +22,16 @@ public:
     using ValueType = boost::variant<uint8_t, uint16_t, uint32_t, uint64_t,
         float, double, std::string, std::vector<uint8_t>>;
 
+    enum class EntryType {
+        key,
+        dir
+    };
+
+    struct DirEntry {
+        EntryType type;
+        std::string name;
+    };
+
     static std::unique_ptr<StorageVolume> open(FileSystem::UniqueFilePtr&& mainFile,
                                                FileSystem::UniqueFilePtr&& stmFile,
                                                FileSystem::UniqueFilePtr&& bigFile);
@@ -33,6 +43,9 @@ public:
     boost::optional<ValueType> lookup(const std::string& keyPath);
     void eraseKey(const std::string& keyPath);
     void eraseDirRecursive(const std::string& dirPath);
+    
+    boost::optional<std::vector<DirEntry>> getDirEntries(const std::string& dirPath);
+
     void dump(const std::function<void(const std::string&)>& out);
 
     static void initFileLogger(const boost::filesystem::path& filePath, size_t maxSize, size_t maxFiles);
@@ -52,15 +65,9 @@ private:
     static constexpr size_t k_inplaceSize = 16;
     static constexpr size_t k_entriesPerNode = 16;
     static constexpr size_t k_maxListHeight = 16;
-    static constexpr size_t k_listBlockSize = 16;
 
     void openImpl();
     void createImpl();
-
-    enum class EntryType {
-        key,
-        dir
-    };
 
     struct KeyInfo{
         std::string value;
@@ -297,7 +304,7 @@ private:
     };
     void loadNodeNextsAndEdgeKey(OffsetType offset, NextsVector& nexts, EdgeKey whichKey, std::string& key);
 
-    using ListPath = std::array<OffsetType, k_listBlockSize>;
+    using ListPath = std::array<OffsetType, k_maxListHeight>;
 
     void findPath(OffsetType headOffset, ListPath& path, const boost::string_view& key);
 
@@ -308,6 +315,8 @@ private:
     void listErase(OffsetType head, EntryType type, const boost::string_view& key);
 
     void listEraseRecursive(OffsetType nodeHeadOffset);
+    
+    void listGetContent(OffsetType nodeHeadOffset, std::vector<DirEntry>& entries);
 
     OffsetType followPath(const std::vector<boost::string_view>& path);
 

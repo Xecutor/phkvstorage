@@ -25,7 +25,7 @@ TEST_F(Files, CreateReadWrite)
     std::vector<uint8_t> dataRead(data.size());
     auto bufIn = boost::asio::buffer(dataRead);
     file->read(bufIn);
-    ASSERT_EQ(data, dataRead);
+    EXPECT_EQ(data, dataRead);
 
     auto bufTmp = boost::asio::buffer(dataRead);
 
@@ -54,6 +54,6 @@ TEST_F(Files, OpenRead)
         std::vector<uint8_t> dataRead(data.size());
         auto bufIn = boost::asio::buffer(dataRead);
         file->read(bufIn);
-        ASSERT_EQ(data, dataRead);
+        EXPECT_EQ(data, dataRead);
     }
 }
