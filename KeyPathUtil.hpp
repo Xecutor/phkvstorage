@@ -7,7 +7,7 @@
 
 namespace phkvs{
 
-std::vector<boost::string_view> splitKeyPath(const boost::string_view& keyPath)
+inline std::vector<boost::string_view> splitKeyPath(const boost::string_view& keyPath)
 {
     std::vector<boost::string_view> result;
     std::string::size_type lastPos = !keyPath.empty() && keyPath[0] == '/' ? 1 : 0;
