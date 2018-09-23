@@ -11,6 +11,8 @@
 
 #include "IRandomAccessFile.hpp"
 #include "FileSystem.hpp"
+#include "FileMagic.hpp"
+#include "FileVersion.hpp"
 #include "SmallToMediumFileStorage.hpp"
 #include "BigFileStorage.hpp"
 
@@ -33,11 +35,11 @@ public:
     };
 
     static std::unique_ptr<StorageVolume> open(FileSystem::UniqueFilePtr&& mainFile,
-                                               FileSystem::UniqueFilePtr&& stmFile,
-                                               FileSystem::UniqueFilePtr&& bigFile);
+                                               std::unique_ptr<SmallToMediumFileStorage>&& stmFileStorage,
+                                               std::unique_ptr<BigFileStorage>&& bigFileStorage);
     static std::unique_ptr<StorageVolume> create(FileSystem::UniqueFilePtr&& mainFile,
-                                                 FileSystem::UniqueFilePtr&& stmFile,
-                                                 FileSystem::UniqueFilePtr&& bigFile);
+                                                 std::unique_ptr<SmallToMediumFileStorage>&& stmFileStorage,
+                                                 std::unique_ptr<BigFileStorage>&& bigFileStorage);
 
     void store(const std::string& keyPath, const ValueType& value);
     boost::optional<ValueType> lookup(const std::string& keyPath);
@@ -338,7 +340,7 @@ private:
 
     struct PrivateKey;
 public:
-    StorageVolume(PrivateKey&, FileSystem::UniqueFilePtr&& mainFile):m_mainFile(std::move(mainFile)){}
+    StorageVolume(PrivateKey&, FileSystem::UniqueFilePtr&& mainFile);
 };
 
 }

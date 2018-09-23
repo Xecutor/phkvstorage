@@ -2,39 +2,58 @@
 
 #include "UIntArrayHexFormatter.hpp"
 #include "FileOpsHelpers.hpp"
+#include "FileVersion.hpp"
+#include "FileMagic.hpp"
 
 
 namespace phkvs {
 
-const FileMagic BigFileStorage::s_magic {{'B', 'G', 'F', 'S'}};
-const FileVersion BigFileStorage::s_currentVersion { 0x0001, 0x0000};
+namespace {
+class BigFileStorageImpl : public BigFileStorage {
+public:
+    //actually private ctor
+    explicit BigFileStorageImpl(FileSystem::UniqueFilePtr&& file) : m_file(std::move(file))
+    {
 
-struct BigFileStorage::PrivateKey{};
+    }
 
-std::unique_ptr<BigFileStorage> BigFileStorage::open(FileSystem::UniqueFilePtr&& file)
-{
-    PrivateKey pkey;
-    auto rv = std::make_unique<BigFileStorage>(pkey, std::move(file));
-    rv->openImpl();
-    return rv;
-}
+    OffsetType allocateAndWrite(boost::asio::const_buffer buf) override;
+    void overwrite(OffsetType offset, boost::asio::const_buffer buf) override;
+    void read(OffsetType offset, boost::asio::mutable_buffer buf) override;
 
-std::unique_ptr<BigFileStorage> BigFileStorage::create(FileSystem::UniqueFilePtr&& file)
-{
-    PrivateKey pkey;
-    auto rv = std::make_unique<BigFileStorage>(pkey, std::move(file));
-    rv->createImpl();
-    return rv;
-}
+    virtual void free(OffsetType offset) override;
 
+    void openImpl();
 
-void BigFileStorage::openImpl()
+    void createImpl();
+
+private:
+    static const FileMagic s_magic;
+    static const FileVersion s_currentVersion;
+    static constexpr size_t k_headerSize = FileMagic::binSize() + FileVersion::binSize() + sizeof(OffsetType);
+    static constexpr size_t k_firstPagePointerOffset = FileMagic::binSize() + FileVersion::binSize();
+    static constexpr size_t k_pageFullSize = 512;
+    static constexpr size_t k_pageDataSize = k_pageFullSize - sizeof(OffsetType);
+
+    OffsetType allocatePage(OffsetType& fileSize);
+
+    static void throwIfOffsetIsInvalid(OffsetType offset, const char* funcName);
+
+    OffsetType m_firstFreePage = 0;
+    FileSystem::UniqueFilePtr m_file;
+
+};
+
+const FileMagic BigFileStorageImpl::s_magic{{'B', 'G', 'F', 'S'}};
+const FileVersion BigFileStorageImpl::s_currentVersion{0x0001, 0x0000};
+
+void BigFileStorageImpl::openImpl()
 {
     auto fileSize = m_file->seekEnd();
     if(fileSize == 0 || (fileSize % k_pageFullSize) != 0)
     {
         throw std::runtime_error(
-            fmt::format("Unexpected file size of {} for BigFileStorage:{}",
+            fmt::format("Unexpected file size of {} for BigFileStorageImpl:{}",
                         m_file->getFilename().string(), fileSize));
     }
     std::array<uint8_t, k_headerSize> headerData{};
@@ -48,7 +67,7 @@ void BigFileStorage::openImpl()
     if(magic != s_magic)
     {
         throw std::runtime_error(
-            fmt::format("BigFileStorage: invalid magic in file {}. Expected {}, but found {}",
+            fmt::format("BigFileStorageImpl: invalid magic in file {}. Expected {}, but found {}",
                         m_file->getFilename().string(), s_magic, magic));
     }
 
@@ -57,13 +76,13 @@ void BigFileStorage::openImpl()
     if(version != s_currentVersion)
     {
         throw std::runtime_error(
-            fmt::format("BigFileStorage: invalid version of file {}. Expected {}, but found {}",
+            fmt::format("BigFileStorageImpl: invalid version of file {}. Expected {}, but found {}",
                         m_file->getFilename().string(), s_magic, magic));
     }
     m_firstFreePage = in.readU64();
 }
 
-void BigFileStorage::createImpl()
+void BigFileStorageImpl::createImpl()
 {
     auto fileSize = m_file->seekEnd();
     if(fileSize != 0)
@@ -80,7 +99,7 @@ void BigFileStorage::createImpl()
     m_file->write(buf);
 }
 
-BigFileStorage::OffsetType BigFileStorage::allocatePage(OffsetType& fileSize)
+BigFileStorageImpl::OffsetType BigFileStorageImpl::allocatePage(OffsetType& fileSize)
 {
     OffsetType rv;
     if(m_firstFreePage)
@@ -103,7 +122,7 @@ BigFileStorage::OffsetType BigFileStorage::allocatePage(OffsetType& fileSize)
     return rv;
 }
 
-BigFileStorage::OffsetType BigFileStorage::allocateAndWrite(boost::asio::const_buffer buf)
+BigFileStorageImpl::OffsetType BigFileStorageImpl::allocateAndWrite(boost::asio::const_buffer buf)
 {
     OffsetType fileSize = 0;
     OffsetType rv = allocatePage(fileSize);
@@ -130,7 +149,7 @@ BigFileStorage::OffsetType BigFileStorage::allocateAndWrite(boost::asio::const_b
     return rv;
 }
 
-void BigFileStorage::overwrite(BigFileStorage::OffsetType offset, boost::asio::const_buffer buf)
+void BigFileStorageImpl::overwrite(BigFileStorageImpl::OffsetType offset, boost::asio::const_buffer buf)
 {
     throwIfOffsetIsInvalid(offset, "overwrite");
 
@@ -171,7 +190,7 @@ void BigFileStorage::overwrite(BigFileStorage::OffsetType offset, boost::asio::c
     }
 }
 
-void BigFileStorage::read(OffsetType offset, boost::asio::mutable_buffer buf)
+void BigFileStorageImpl::read(OffsetType offset, boost::asio::mutable_buffer buf)
 {
     throwIfOffsetIsInvalid(offset, "read");
     OffsetType currentPageOffset = offset;
@@ -192,7 +211,7 @@ void BigFileStorage::read(OffsetType offset, boost::asio::mutable_buffer buf)
     }
 }
 
-void BigFileStorage::free(OffsetType offset)
+void BigFileStorageImpl::free(OffsetType offset)
 {
     throwIfOffsetIsInvalid(offset, "free");
     if(m_firstFreePage)
@@ -213,12 +232,28 @@ void BigFileStorage::free(OffsetType offset)
     writeUIntAt(*m_file, k_firstPagePointerOffset, m_firstFreePage);
 }
 
-void BigFileStorage::throwIfOffsetIsInvalid(OffsetType offset, const char* funcName)
+void BigFileStorageImpl::throwIfOffsetIsInvalid(OffsetType offset, const char* funcName)
 {
     if((offset % k_pageFullSize) != 0)
     {
         throw std::runtime_error(fmt::format("BigFileStorage::{}:Invalid offset {}", funcName, offset));
     }
+}
+
+}
+
+BigFileStorage::UniquePtr BigFileStorage::open(FileSystem::UniqueFilePtr&& file)
+{
+    auto rv = std::make_unique<BigFileStorageImpl>(std::move(file));
+    rv->openImpl();
+    return rv;
+}
+
+BigFileStorage::UniquePtr BigFileStorage::create(FileSystem::UniqueFilePtr&& file)
+{
+    auto rv = std::make_unique<BigFileStorageImpl>(std::move(file));
+    rv->createImpl();
+    return rv;
 }
 
 }

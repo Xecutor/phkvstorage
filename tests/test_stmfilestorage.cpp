@@ -23,7 +23,9 @@ TEST_F(SmallToMediumStorageTest, CreateOpen)
     }
 
     {
-        auto storage = phkvs::SmallToMediumFileStorage::open(phkvs::FileSystem::openFileUnique(filename));
+        auto file = phkvs::FileSystem::openFileUnique(filename);
+        ASSERT_TRUE(file);
+        auto storage = phkvs::SmallToMediumFileStorage::open(std::move(file));
     }
 }
 

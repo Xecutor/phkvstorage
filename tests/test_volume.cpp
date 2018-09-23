@@ -31,19 +31,25 @@ public:
         auto bigFile = phkvs::FileSystem::createFileUnique(bigFilename);
         ASSERT_TRUE(bigFile);
         addToCleanup(bigFilename);
-        volume = phkvs::StorageVolume::create(std::move(mainFile), std::move(stmFile), std::move(bigFile));
+        auto stmFileStorage = phkvs::SmallToMediumFileStorage::create(std::move(stmFile));
+        ASSERT_TRUE(stmFileStorage);
+        auto bigFileStorage = phkvs::BigFileStorage::create(std::move(bigFile));
+        volume = phkvs::StorageVolume::create(std::move(mainFile), std::move(stmFileStorage),
+                                              std::move(bigFileStorage));
     }
 
     VolumeTest()
     {
-        rng.seed(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count() ^
-                                       std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+        std::seed_seq seed {
+            static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()),
+            static_cast<uint32_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count())};
+        rng.seed(seed);
         //phkvs::StorageVolume::initFileLogger("test.log", 100000, 3);
         //phkvs::StorageVolume::initStdoutLogger();
         createStorageVolume();
     }
 
-    template <typename T>
+    template<typename T>
     void testInsertLookup(const std::string& keyPath, const T& value)
     {
         volume->store(keyPath, value);
@@ -58,7 +64,7 @@ public:
         std::uniform_int_distribution<size_t> disLen(minLength, maxLength);
         std::string rv(disLen(rng), 0);
         std::uniform_int_distribution<size_t> disChar(0, sizeof(chars) - 2);//inclusive range, and terminating zero
-        std::generate_n(rv.begin(), rv.size(), [this, &disChar](){
+        std::generate_n(rv.begin(), rv.size(), [this, &disChar]() {
             return chars[disChar(rng)];
         });
         return rv;
@@ -92,7 +98,7 @@ TEST_F(VolumeTest, BasicInsertLookup)
 
 TEST_F(VolumeTest, InsertLookupLongKeys)
 {
-    for(size_t i=0;i<100;++i)
+    for(size_t i = 0; i < 100; ++i)
     {
         testInsertLookup(randomString(17, 1000), randomString(1, 1000));
     }
@@ -119,7 +125,7 @@ TEST_F(VolumeTest, InsertMultiple)
 TEST_F(VolumeTest, InsertErase)
 {
     std::vector<std::pair<std::string, std::string>> keyValue;
-    for(size_t i=0;i<100;++i)
+    for(size_t i = 0; i < 100; ++i)
     {
         keyValue.emplace_back(fmt::format("/key{:03}", i), fmt::format("value{}", i));
         volume->store(keyValue.back().first, keyValue.back().second);
@@ -164,9 +170,9 @@ TEST_F(VolumeTest, GetDirEntries)
     std::string baseDir = "/foo/bar/";
     std::set<std::string> keys;
     std::set<std::string> subDirs;
-    for(size_t i=0;i<100;++i)
+    for(size_t i = 0; i < 100; ++i)
     {
-        auto key =  fmt::format("key{}", i);
+        auto key = fmt::format("key{}", i);
         volume->store(baseDir + key, static_cast<uint32_t>(i));
         keys.insert(std::move(key));
         auto subDir = fmt::format("subdir{}", i);
@@ -182,16 +188,14 @@ TEST_F(VolumeTest, GetDirEntries)
             auto it = keys.find(entry.name);
             EXPECT_NE(it, keys.end());
             keys.erase(it);
-        }
-        else if(entry.type == phkvs::StorageVolume::EntryType::dir)
+        } else if(entry.type == phkvs::StorageVolume::EntryType::dir)
         {
             auto it = subDirs.find(entry.name);
             EXPECT_NE(it, subDirs.end());
             subDirs.erase(it);
-        }
-        else
+        } else
         {
-            GTEST_FAIL()<<"Unexpected entry.type value" << static_cast<int>(entry.type);
+            GTEST_FAIL() << "Unexpected entry.type value" << static_cast<int>(entry.type);
         }
     }
     EXPECT_TRUE(keys.empty());
