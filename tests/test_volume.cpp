@@ -11,6 +11,110 @@
 
 #include "FileSystem.hpp"
 
+class TrackingSmallToMediumFileStorage : public phkvs::SmallToMediumFileStorage {
+public:
+
+    TrackingSmallToMediumFileStorage(phkvs::SmallToMediumFileStorage::UniquePtr&& impl) :
+        m_impl(std::move(impl))
+    {
+    }
+
+    OffsetType allocateAndWrite(boost::asio::const_buffer buf) override
+    {
+        auto rv = m_impl->allocateAndWrite(buf);
+
+        m_offsetSizeMap.emplace(rv, buf.size());
+
+        return rv;
+    }
+
+    OffsetType overwrite(OffsetType offset, size_t oldSize, boost::asio::const_buffer buf) override
+    {
+        auto it = m_offsetSizeMap.find(offset);
+        EXPECT_NE(it, m_offsetSizeMap.end());
+        EXPECT_EQ(it->second, oldSize);
+        auto rv = m_impl->overwrite(offset, oldSize, buf);
+        if(offset == rv)
+        {
+            it->second = buf.size();
+        }
+        else
+        {
+            m_offsetSizeMap.erase(it);
+            m_offsetSizeMap.emplace(rv, buf.size());
+        }
+        return rv;
+    }
+
+    void read(OffsetType offset, boost::asio::mutable_buffer buf) override
+    {
+        m_impl->read(offset, buf);
+    }
+
+    void freeSlot(OffsetType offset, size_t size) override
+    {
+        auto it = m_offsetSizeMap.find(offset);
+        EXPECT_NE(it, m_offsetSizeMap.end()) << "Attempt to double free slot at " << offset << " of size " << size;
+        if(it == m_offsetSizeMap.end())
+        {
+            return;
+        }
+        EXPECT_EQ(it->second, size);
+        m_offsetSizeMap.erase(it);
+        m_impl->freeSlot(offset, size);
+    }
+
+    phkvs::SmallToMediumFileStorage::UniquePtr m_impl;
+    std::map<OffsetType, size_t> m_offsetSizeMap;
+};
+
+class TrackingBigFileStorage : public phkvs::BigFileStorage {
+public:
+    TrackingBigFileStorage(phkvs::BigFileStorage::UniquePtr&& impl) :
+        m_impl(std::move(impl))
+    {
+    }
+
+    OffsetType allocateAndWrite(boost::asio::const_buffer buf) override
+    {
+        auto rv = m_impl->allocateAndWrite(buf);
+
+        m_offsetSizeMap.emplace(rv, buf.size());
+
+        return rv;
+    }
+
+    void overwrite(OffsetType offset, boost::asio::const_buffer buf) override
+    {
+        EXPECT_NE(m_offsetSizeMap.find(offset), m_offsetSizeMap.end());
+
+        m_impl->overwrite(offset, buf);
+    }
+
+    void read(OffsetType offset, boost::asio::mutable_buffer buf) override
+    {
+        auto it = m_offsetSizeMap.find(offset);
+        EXPECT_NE(it, m_offsetSizeMap.end());
+        EXPECT_LE(it->second, buf.size());
+        m_impl->read(offset, buf);
+    }
+
+    void free(OffsetType offset) override
+    {
+        auto it = m_offsetSizeMap.find(offset);
+        EXPECT_NE(it, m_offsetSizeMap.end()) << "Attempt to double free slot at " << offset;
+        if(it == m_offsetSizeMap.end())
+        {
+            return;
+        }
+        m_offsetSizeMap.erase(it);
+        m_impl->free(offset);
+    }
+
+    phkvs::BigFileStorage::UniquePtr m_impl;
+    std::map<OffsetType, size_t> m_offsetSizeMap;
+};
+
 class VolumeTest : public FilesCleanupFixture {
 public:
     boost::filesystem::path volumeFilename = "test-volume.bin";
@@ -18,6 +122,8 @@ public:
     boost::filesystem::path bigFilename = "test-big.bin";
 
     std::unique_ptr<phkvs::StorageVolume> volume;
+    TrackingSmallToMediumFileStorage* trackingStmStoragePtr = nullptr;//owned by volume
+    TrackingBigFileStorage* trackingBigStoragePtr = nullptr;//owned by volume
     std::mt19937 rng;
 
     void createStorageVolume()
@@ -33,14 +139,23 @@ public:
         addToCleanup(bigFilename);
         auto stmFileStorage = phkvs::SmallToMediumFileStorage::create(std::move(stmFile));
         ASSERT_TRUE(stmFileStorage);
+
+        auto trackingStmFileStorage = std::make_unique<TrackingSmallToMediumFileStorage>(std::move(stmFileStorage));
+        trackingStmStoragePtr = trackingStmFileStorage.get();
+
         auto bigFileStorage = phkvs::BigFileStorage::create(std::move(bigFile));
-        volume = phkvs::StorageVolume::create(std::move(mainFile), std::move(stmFileStorage),
-                                              std::move(bigFileStorage));
+
+        auto trackingBigStorage = std::make_unique<TrackingBigFileStorage>(std::move(bigFileStorage));
+
+        trackingBigStoragePtr = trackingBigStorage.get();
+
+        volume = phkvs::StorageVolume::create(std::move(mainFile), std::move(trackingStmFileStorage),
+                                              std::move(trackingBigStorage));
     }
 
     VolumeTest()
     {
-        std::seed_seq seed {
+        std::seed_seq seed{
             static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()),
             static_cast<uint32_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count())};
         rng.seed(seed);
@@ -142,6 +257,8 @@ TEST_F(VolumeTest, InsertErase)
 
 TEST_F(VolumeTest, InsertEraseRecursive)
 {
+    volume->store("/dummy", "");
+
     std::vector<std::pair<std::string, std::string>> keyValue;
     keyValue.emplace_back("/foo/bar/key1", "value1");
     keyValue.emplace_back("/foo/bar/key2", "value2");
@@ -188,16 +305,32 @@ TEST_F(VolumeTest, GetDirEntries)
             auto it = keys.find(entry.name);
             EXPECT_NE(it, keys.end());
             keys.erase(it);
-        } else if(entry.type == phkvs::StorageVolume::EntryType::dir)
+        }
+        else if(entry.type == phkvs::StorageVolume::EntryType::dir)
         {
             auto it = subDirs.find(entry.name);
             EXPECT_NE(it, subDirs.end());
             subDirs.erase(it);
-        } else
+        }
+        else
         {
             GTEST_FAIL() << "Unexpected entry.type value" << static_cast<int>(entry.type);
         }
     }
     EXPECT_TRUE(keys.empty());
     EXPECT_TRUE(subDirs.empty());
+}
+
+TEST_F(VolumeTest, ExternalAllocations)
+{
+    auto stmAllocAtStart = trackingStmStoragePtr->m_offsetSizeMap;
+    auto bigAllocAtStart = trackingBigStoragePtr->m_offsetSizeMap;
+    for(size_t i=10;i<1000;++i)
+    {
+        volume->store(fmt::format("/foo/{}", randomString(i,i)), randomString(i,i));
+        volume->store(fmt::format("/foo/{}", randomString(i,i)), std::vector<uint8_t>(i,0));
+    }
+    volume->eraseDirRecursive("/foo");
+    EXPECT_EQ(stmAllocAtStart, trackingStmStoragePtr->m_offsetSizeMap);
+    EXPECT_EQ(bigAllocAtStart, trackingBigStoragePtr->m_offsetSizeMap);
 }

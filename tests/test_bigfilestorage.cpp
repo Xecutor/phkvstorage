@@ -15,6 +15,7 @@ public:
             boost::filesystem::remove(filename);
         }
     }
+
     boost::filesystem::path filename = "test.bin";
 };
 
@@ -43,9 +44,9 @@ TEST_F(BigFileStorageTest, WriteRead)
     using OffsetType = phkvs::BigFileStorage::OffsetType;
     std::vector<std::pair<OffsetType, std::vector<uint8_t>>> offsetAndData;
     std::set<OffsetType> usedOffsets;
-    for(size_t i=0;i<100;++i)
+    for(size_t i = 0; i < 100; ++i)
     {
-        std::vector<uint8_t> data((i+1)*400);
+        std::vector<uint8_t> data((i + 1) * 400);
         size_t j = i;
         for(auto& v:data)
         {
@@ -95,14 +96,15 @@ TEST_F(BigFileStorageTest, WriteRead)
         {
             auto offset = p.first;
             auto& data = p.second;
-            if(idx<5 || (idx&1))
+            if(idx < 5 || (idx & 1))
             {
                 for(size_t i = 0; i < 400; ++i)
                 {
                     data.push_back(static_cast<uint8_t>(i));
                 }
             }
-            else{
+            else
+            {
                 data.erase(data.end() - 400);
             }
             ++idx;

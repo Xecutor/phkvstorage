@@ -153,7 +153,8 @@ SmallToMediumFileStorageImpl::OffsetType SmallToMediumFileStorageImpl::allocateA
         readUIntAt(*m_file, rv, next);
         writeUIntAt(*m_file, offsetForFreeSlotByIndex(index), next);
         m_freeSlotsListOffset[index] = next;
-    } else
+    }
+    else
     {
         rv = m_file->seekEnd();
     }
@@ -179,7 +180,8 @@ SmallToMediumFileStorageImpl::overwrite(OffsetType offset, size_t oldSize, boost
     {
         m_file->seek(offset);
         m_file->write(buf);
-    } else
+    }
+    else
     {
         freeSlot(offset, oldSize);
         offset = allocateAndWrite(buf);

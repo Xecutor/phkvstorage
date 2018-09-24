@@ -1,12 +1,14 @@
 #include "FileSystem.hpp"
 
 #ifdef _WIN32
+
 #include "platform/win32/RandomAccessFileWin32.hpp"
+
 #else
 #include "platform/posix/RandomAccessFilePosix.hpp"
 #endif
 
-namespace phkvs{
+namespace phkvs {
 
 FileSystem::UniqueFilePtr FileSystem::createFileUnique(boost::filesystem::path filename)
 {

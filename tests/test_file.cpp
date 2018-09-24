@@ -6,7 +6,7 @@
 
 #include <boost/filesystem.hpp>
 
-class Files : public FilesCleanupFixture{
+class Files : public FilesCleanupFixture {
 public:
 };
 

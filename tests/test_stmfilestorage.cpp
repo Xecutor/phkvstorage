@@ -108,7 +108,7 @@ TEST_F(SmallToMediumStorageTest, CreateWriteRead)
         }
         //overwrite with bigger data
         OffsetType newOffset = storage->overwrite(offset, oldSize, boost::asio::buffer(data));
-        EXPECT_NE(offset, newOffset) << "oldSize=="<<oldSize<<", newSize="<<data.size();
+        EXPECT_NE(offset, newOffset) << "oldSize==" << oldSize << ", newSize=" << data.size();
         p.first = newOffset;
         usedOffsets.insert(newOffset);
     }

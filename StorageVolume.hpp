@@ -86,6 +86,7 @@ private:
     void loadKey(InputBinBuffer& in, bool isInplace, KeyInfo& key);
 
     void loadInplaceString(InputBinBuffer& in, std::string& value);
+    void loadInplaceVector(InputBinBuffer& in, std::vector<uint8_t>& value);
 
     struct ValueInfo{
         ValueType value;

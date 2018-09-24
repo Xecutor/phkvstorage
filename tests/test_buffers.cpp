@@ -8,7 +8,7 @@ TEST(Input, BasicInts)
         1,
         2, 1,
         4, 3, 2, 1,
-        8,7,6,5,4,3,2,1
+        8, 7, 6, 5, 4, 3, 2, 1
     };
     phkvs::InputBinBuffer in(boost::asio::buffer(data));
     ASSERT_EQ(in.readU8(), 0x01);

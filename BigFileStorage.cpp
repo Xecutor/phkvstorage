@@ -18,7 +18,9 @@ public:
     }
 
     OffsetType allocateAndWrite(boost::asio::const_buffer buf) override;
+
     void overwrite(OffsetType offset, boost::asio::const_buffer buf) override;
+
     void read(OffsetType offset, boost::asio::mutable_buffer buf) override;
 
     virtual void free(OffsetType offset) override;
@@ -107,12 +109,14 @@ BigFileStorageImpl::OffsetType BigFileStorageImpl::allocatePage(OffsetType& file
         rv = m_firstFreePage;
         readUIntAt(*m_file, m_firstFreePage, m_firstFreePage);
         writeUIntAt(*m_file, k_firstPagePointerOffset, m_firstFreePage);
-    } else
+    }
+    else
     {
         if(!fileSize)
         {
             fileSize = m_file->seekEnd();
-        } else
+        }
+        else
         {
             fileSize += k_pageFullSize;
         }
@@ -134,7 +138,8 @@ BigFileStorageImpl::OffsetType BigFileStorageImpl::allocateAndWrite(boost::asio:
         if(buf.size() > k_pageDataSize)
         {
             nextPageOffset = allocatePage(fileSize);
-        } else
+        }
+        else
         {
             toWrite = buf.size();
         }
@@ -168,7 +173,8 @@ void BigFileStorageImpl::overwrite(BigFileStorageImpl::OffsetType offset, boost:
         if(lastPage)
         {
             toWrite = buf.size();
-        } else
+        }
+        else
         {
             if(!nextPageOffset)
             {
