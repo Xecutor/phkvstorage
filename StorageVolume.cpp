@@ -398,7 +398,7 @@ StorageVolumeImpl::StorageVolumeImpl(FileSystem::UniqueFilePtr&& mainFile,
     std::hash<std::thread::id> hasher;
     std::seed_seq seed{
             static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()),
-            hasher(std::this_thread::get_id())
+            static_cast<uint32_t>(hasher(std::this_thread::get_id()))
     };
     m_random.seed(seed);
 }

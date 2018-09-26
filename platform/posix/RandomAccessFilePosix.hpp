@@ -88,7 +88,7 @@ public:
             int err = errno;
             throw fmt::system_error(err, "[{}]read error", m_filename.string());
         }
-        if(buf.size() != ret)
+        if(buf.size() != static_cast<size_t>(ret))
         {
             throw std::runtime_error(
                 fmt::format("[{}]read requested {} bytes, but actually read {}",
@@ -104,7 +104,7 @@ public:
             int err = errno;
             throw fmt::system_error(err, "[{}]write error", m_filename.string());
         }
-        if(buf.size() != ret)
+        if(buf.size() != static_cast<size_t>(ret))
         {
             throw std::runtime_error(
                 fmt::format("[{}]write requested {} bytes, but actually written {}",
