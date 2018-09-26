@@ -5,7 +5,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/utility/string_view.hpp>
 
-namespace phkvs{
+namespace phkvs {
 
 inline std::vector<boost::string_view> splitKeyPath(const boost::string_view& keyPath)
 {
@@ -14,14 +14,17 @@ inline std::vector<boost::string_view> splitKeyPath(const boost::string_view& ke
     do
     {
         auto pos = keyPath.find('/', lastPos);
-        if(pos==std::string::npos)
+        if(pos == std::string::npos)
         {
-            result.emplace_back(keyPath.data() + lastPos);
+            if(lastPos != keyPath.length())
+            {
+                result.emplace_back(keyPath.data() + lastPos);
+            }
             break;
         }
         result.emplace_back(keyPath.data() + lastPos, pos - lastPos);
         lastPos = pos + 1;
-    }while(lastPos<keyPath.length());
+    } while(lastPos < keyPath.length());
     return result;
 }
 

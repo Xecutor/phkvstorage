@@ -223,7 +223,7 @@ TEST_F(VolumeTest, InsertLookupLongKeys)
 TEST_F(VolumeTest, InsertMultiple)
 {
     std::vector<std::pair<std::string, std::string>> keyValue;
-    for(size_t i = 0; i < 1000; ++i)
+    for(size_t i = 0; i < 10000; ++i)
     {
         auto p = std::make_pair(fmt::format("/key{}", i), fmt::format("value{}", i));
         volume->store(p.first, p.second);
@@ -333,4 +333,35 @@ TEST_F(VolumeTest, ExternalAllocations)
     volume->eraseDirRecursive("/foo");
     EXPECT_EQ(stmAllocAtStart, trackingStmStoragePtr->m_offsetSizeMap);
     EXPECT_EQ(bigAllocAtStart, trackingBigStoragePtr->m_offsetSizeMap);
+}
+
+TEST_F(VolumeTest, Expiration)
+{
+    const auto key1 = "/expiresInSecond";
+    const auto key2 = "/expiresInTwoSeconds";
+    volume->storeExpirable(key1, uint8_t(1), std::chrono::system_clock::now() + std::chrono::seconds(1));
+    volume->storeExpirable(key2, uint8_t(2), std::chrono::system_clock::now() + std::chrono::seconds(2));
+    EXPECT_TRUE(volume->lookup(key1));
+    EXPECT_TRUE(volume->lookup(key2));
+    auto dirOpt = volume->getDirEntries("/");
+    ASSERT_TRUE(dirOpt);
+    EXPECT_EQ(dirOpt->size(), 2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    EXPECT_TRUE(volume->lookup(key1));
+    EXPECT_TRUE(volume->lookup(key2));
+    dirOpt = volume->getDirEntries("/");
+    ASSERT_TRUE(dirOpt);
+    EXPECT_EQ(dirOpt->size(), 2);
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    EXPECT_FALSE(volume->lookup(key1));
+    EXPECT_TRUE(volume->lookup(key2));
+    dirOpt = volume->getDirEntries("/");
+    ASSERT_TRUE(dirOpt);
+    EXPECT_EQ(dirOpt->size(), 1);
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    EXPECT_FALSE(volume->lookup(key1));
+    EXPECT_FALSE(volume->lookup(key2));
+    dirOpt = volume->getDirEntries("/");
+    ASSERT_TRUE(dirOpt);
+    EXPECT_EQ(dirOpt->size(), 0);
 }

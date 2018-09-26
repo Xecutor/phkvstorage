@@ -14,6 +14,16 @@
 
 namespace phkvs {
 
+namespace {
+
+uint64_t nowInMilliseconds()
+{
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
+
+}
+
 const FileMagic StorageVolume::s_magic = {{'P', 'H', 'V', 'L'}};
 const FileVersion StorageVolume::s_currentVersion = {0x0001, 0x0000};
 const char* StorageVolume::s_loggingCategory = "StorageVolume";
@@ -630,6 +640,16 @@ void StorageVolume::storeNode(OutputBinBuffer& out, SkipListNode& node)
 
 void StorageVolume::store(const std::string& keyPath, const StorageVolume::ValueType& value)
 {
+    store(keyPath, value, 0);
+}
+
+void StorageVolume::storeExpirable(const std::string& keyPath, const ValueType& value, TimePoint expTime)
+{
+    store(keyPath, value, std::chrono::duration_cast<std::chrono::milliseconds>(expTime.time_since_epoch()).count());
+}
+
+void StorageVolume::store(const std::string& keyPath, const StorageVolume::ValueType& value, uint64_t expTime)
+{
     auto path = splitKeyPath(keyPath);
     if(path.empty() || path.back().length() == 0)
     {
@@ -638,28 +658,38 @@ void StorageVolume::store(const std::string& keyPath, const StorageVolume::Value
     auto key = path.back();
     path.pop_back();
     OffsetType offset = k_rootListOffset;
-    for(auto& dir:path)
+    if(m_lastDirHeadOffset != 0 && m_lastDir.compare(0, keyPath.length() - key.length(), keyPath) == 0)
     {
-        Entry entry;
-        if(!listLookup(offset, dir, entry))
+        offset = m_lastDirHeadOffset;
+    }
+    else
+    {
+        for(auto& dir:path)
         {
-            OffsetType newDirOffset = createSkipListHeadNode();
-            entry.setDir(std::string(dir.data(), dir.length()), newDirOffset);
-            listInsert(offset, std::move(entry));
-            offset = newDirOffset;
-        }
-        else
-        {
-            if(entry.type != EntryType::dir)
+            Entry entry;
+            if(!listLookup(offset, dir, entry))
             {
-                throw std::runtime_error(
-                    fmt::format("StorageVolume: entry {} is not dir.", dir));
+                OffsetType newDirOffset = createSkipListHeadNode();
+                entry.setDir(std::string(dir.data(), dir.length()), newDirOffset);
+                listInsert(offset, std::move(entry));
+                offset = newDirOffset;
             }
-            offset = boost::get<uint64_t>(entry.value.value);
+            else
+            {
+                if(entry.type != EntryType::dir)
+                {
+                    throw std::runtime_error(
+                            fmt::format("StorageVolume: entry {} is not dir.", dir));
+                }
+                offset = boost::get<uint64_t>(entry.value.value);
+            }
         }
+        m_lastDir.assign(keyPath, 0, keyPath.length() - key.length());
+        m_lastDirHeadOffset = offset;
     }
     Entry keyEntry;
     keyEntry.setValue(std::string(key.data(), key.length()), value);
+    keyEntry.expirationDateTime = expTime;
     listInsert(offset, std::move(keyEntry));
 }
 
@@ -672,13 +702,27 @@ boost::optional<StorageVolume::ValueType> StorageVolume::lookup(const std::strin
     }
     auto key = path.back();
     path.pop_back();
-    OffsetType offset = followPath(path);
-    if(!offset)
+    OffsetType offset;
+    if(m_lastDirHeadOffset != 0 && m_lastDir.compare(0, keyPath.length() - key.length(), keyPath) == 0)
     {
-        return {};
+        offset = m_lastDirHeadOffset;
+    }
+    else
+    {
+        offset = followPath(path);
+        if(!offset)
+        {
+            return {};
+        }
+        m_lastDir.assign(keyPath, 0, keyPath.length() - key.length());
+        m_lastDirHeadOffset = offset;
     }
     Entry keyEntry;
     if(!listLookup(offset, key, keyEntry))
+    {
+        return {};
+    }
+    if(keyEntry.expirationDateTime != 0 && keyEntry.expirationDateTime< nowInMilliseconds())
     {
         return {};
     }
@@ -709,6 +753,8 @@ void StorageVolume::eraseDirRecursive(const std::string& dirPath)
     {
         return;
     }
+    m_lastDir.clear();
+    m_lastDirHeadOffset = 0;
     auto dir = path.back();
     path.pop_back();
     OffsetType offset = followPath(path);
@@ -1152,11 +1198,16 @@ void StorageVolume::listGetContent(OffsetType nodeHeadOffset, std::vector<DirEnt
     SkipListNode node;
     loadHeadNode(nodeHeadOffset, node);
     OffsetType offset = node.nexts[0];
+    auto now = nowInMilliseconds();
     while(offset)
     {
         loadNode(offset, node);
         for(auto& entry:node.entries)
         {
+            if(entry.expirationDateTime != 0 && entry.expirationDateTime < now)
+            {
+                continue;
+            }
             entries.push_back({entry.type, entry.key.value});
         }
         offset = node.nexts[0];

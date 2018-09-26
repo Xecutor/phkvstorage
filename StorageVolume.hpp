@@ -2,6 +2,7 @@
 
 #include <string>
 #include <random>
+#include <chrono>
 
 #include <boost/variant.hpp>
 #include <boost/optional.hpp>
@@ -24,6 +25,8 @@ public:
     using ValueType = boost::variant<uint8_t, uint16_t, uint32_t, uint64_t,
         float, double, std::string, std::vector<uint8_t>>;
 
+    using TimePoint = std::chrono::system_clock::time_point;
+
     enum class EntryType {
         key,
         dir
@@ -42,6 +45,7 @@ public:
                                                  std::unique_ptr<BigFileStorage>&& bigFileStorage);
 
     void store(const std::string& keyPath, const ValueType& value);
+    void storeExpirable(const std::string& keyPath, const ValueType& value, TimePoint expTime);
     boost::optional<ValueType> lookup(const std::string& keyPath);
     void eraseKey(const std::string& keyPath);
     void eraseDirRecursive(const std::string& dirPath);
@@ -70,6 +74,8 @@ private:
 
     void openImpl();
     void createImpl();
+
+    void store(const std::string& keyPath, const ValueType& value, uint64_t expTime);
 
     struct KeyInfo{
         std::string value;
@@ -330,6 +336,9 @@ private:
     OffsetType m_firstFreeHeadListNode = 0;
     std::unique_ptr<SmallToMediumFileStorage> m_stmStorage;
     std::unique_ptr<BigFileStorage> m_bigStorage;
+
+    std::string m_lastDir;
+    OffsetType m_lastDirHeadOffset;
 
     std::mt19937 m_random;
 
