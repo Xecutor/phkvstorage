@@ -16,6 +16,8 @@ public:
     static SharedFilePtr createFileShared(boost::filesystem::path filename);
     static UniqueFilePtr openFileUnique(boost::filesystem::path  filename);
     static SharedFilePtr openFileShared(boost::filesystem::path  filename);
+
+    static int getLastError();
 };
 
 }

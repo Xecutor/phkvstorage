@@ -1,9 +1,7 @@
 #include "FileSystem.hpp"
 
 #ifdef _WIN32
-
 #include "platform/win32/RandomAccessFileWin32.hpp"
-
 #else
 #include "platform/posix/RandomAccessFilePosix.hpp"
 #endif
@@ -48,6 +46,11 @@ FileSystem::SharedFilePtr FileSystem::openFileShared(boost::filesystem::path fil
         return {};
     }
     return std::make_shared<RandomAccessFile>(filename, std::move(handle));
+}
+
+int FileSystem::getLastError()
+{
+    return RandomAccessFile::getLastError();
 }
 
 }

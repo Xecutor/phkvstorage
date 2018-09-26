@@ -30,13 +30,19 @@ public:
 
     using VolumeId = uint32_t;
 
+    struct VolumeInfo{
+        boost::filesystem::path volumePath;
+        std::string volumeName;
+        std::string mountPointPath;
+        VolumeId volumeId;
+    };
+
     virtual VolumeId createAndMountVolume(const boost::filesystem::path& volumePath, boost::string_view volumeName,
                                       boost::string_view mountPointPath) = 0;
-
     virtual VolumeId mountVolume(const boost::filesystem::path& volumePath, boost::string_view volumeName,
                              boost::string_view mountPointPath) = 0;
-
     virtual void unmountVolume(VolumeId volumeId) = 0;
+    virtual std::vector<VolumeInfo> getMountVolumesInfo() const = 0;
 
     virtual void store(boost::string_view keyPath, const ValueType& value) = 0;
     virtual void storeExpiring(boost::string_view keyPath, const ValueType& value, TimePoint expTime) = 0;

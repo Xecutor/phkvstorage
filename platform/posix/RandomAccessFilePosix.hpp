@@ -149,6 +149,11 @@ public:
         return m_filename;
     }
 
+    static int getLastError()
+    {
+        return errno;
+    }
+
 private:
 
     static Handle open(const boost::filesystem::path& path)
