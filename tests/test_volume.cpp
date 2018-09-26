@@ -2,14 +2,14 @@
 
 #include <random>
 #include <chrono>
+#include <thread>
 
-#include "SmallToMediumFileStorage.hpp"
-#include "BigFileStorage.hpp"
-#include <StorageVolume.hpp>
+#include <fmt/format.h>
+
+#include "StorageVolume.hpp"
 
 #include "FilesCleanupFixture.hpp"
 
-#include "FileSystem.hpp"
 
 class TrackingSmallToMediumFileStorage : public phkvs::SmallToMediumFileStorage {
 public:
@@ -339,8 +339,8 @@ TEST_F(VolumeTest, Expiration)
 {
     const auto key1 = "/expiresInSecond";
     const auto key2 = "/expiresInTwoSeconds";
-    volume->storeExpirable(key1, uint8_t(1), std::chrono::system_clock::now() + std::chrono::seconds(1));
-    volume->storeExpirable(key2, uint8_t(2), std::chrono::system_clock::now() + std::chrono::seconds(2));
+    volume->storeExpiring(key1, uint8_t(1), std::chrono::system_clock::now() + std::chrono::seconds(1));
+    volume->storeExpiring(key2, uint8_t(2), std::chrono::system_clock::now() + std::chrono::seconds(2));
     EXPECT_TRUE(volume->lookup(key1));
     EXPECT_TRUE(volume->lookup(key2));
     auto dirOpt = volume->getDirEntries("/");
@@ -364,4 +364,10 @@ TEST_F(VolumeTest, Expiration)
     dirOpt = volume->getDirEntries("/");
     ASSERT_TRUE(dirOpt);
     EXPECT_EQ(dirOpt->size(), 0);
+}
+
+TEST_F(VolumeTest, OverwriteException)
+{
+    volume->store("/dir/key", uint8_t{1});
+    EXPECT_THROW(volume->store("/dir/key/key2", uint8_t{1}), std::runtime_error);
 }
