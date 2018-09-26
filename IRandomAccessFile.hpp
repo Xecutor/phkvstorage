@@ -9,7 +9,7 @@ namespace phkvs{
 class IRandomAccessFile{
 public:
     using OffsetType = uint64_t;
-    virtual ~IRandomAccessFile() = default;
+
     virtual void read(boost::asio::mutable_buffer buf) = 0;
     virtual void write(boost::asio::const_buffer buf) = 0;
     //Seek to specified absolute offset
@@ -18,6 +18,9 @@ public:
     virtual OffsetType seekEnd() = 0;
 
     virtual const boost::filesystem::path& getFilename()const = 0;
+
+    virtual ~IRandomAccessFile() = default;
+
 };
 
 }

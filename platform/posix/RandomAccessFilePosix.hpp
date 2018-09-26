@@ -82,6 +82,8 @@ public:
 
     void read(boost::asio::mutable_buffer buf) override
     {
+        //buffers of size >2Gb are not supported, but they aren't used in this project.
+        //big file storage uses pages.
         int ret = ::read(m_handle.get(), buf.data(), buf.size());
         if(ret == -1)
         {

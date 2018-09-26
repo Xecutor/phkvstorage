@@ -56,6 +56,8 @@ public:
 private:
     using OffsetType = IRandomAccessFile::OffsetType;
 
+    using EntryType = PHKVStorage::EntryType;
+
     static const FileMagic s_magic;
     static const FileVersion s_currentVersion;
 

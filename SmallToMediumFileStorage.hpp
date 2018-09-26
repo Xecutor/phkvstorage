@@ -13,8 +13,6 @@ public:
     static UniquePtr open(FileSystem::UniqueFilePtr&& file);
     static UniquePtr create(FileSystem::UniqueFilePtr&& file);
 
-    virtual ~SmallToMediumFileStorage() = default;
-
     virtual OffsetType allocateAndWrite(boost::asio::const_buffer buf) = 0;
     virtual OffsetType overwrite(OffsetType offset, size_t oldSize, boost::asio::const_buffer buf) = 0;
     virtual void read(OffsetType offset, boost::asio::mutable_buffer buf) = 0;
@@ -30,6 +28,8 @@ public:
     {
         return (k_slotsCount + 1) * k_slotSizeIncrement;
     }
+
+    virtual ~SmallToMediumFileStorage() = default;
 
 protected:
     static constexpr size_t k_slotSizeIncrement = 8;

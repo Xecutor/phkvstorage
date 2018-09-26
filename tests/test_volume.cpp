@@ -300,13 +300,14 @@ TEST_F(VolumeTest, GetDirEntries)
     ASSERT_TRUE(entriesOpt);
     for(auto& entry:*entriesOpt)
     {
-        if(entry.type == phkvs::StorageVolume::EntryType::key)
+        using EntryType = phkvs::PHKVStorage::EntryType;
+        if(entry.type == EntryType::key)
         {
             auto it = keys.find(entry.name);
             EXPECT_NE(it, keys.end());
             keys.erase(it);
         }
-        else if(entry.type == phkvs::StorageVolume::EntryType::dir)
+        else if(entry.type == EntryType::dir)
         {
             auto it = subDirs.find(entry.name);
             EXPECT_NE(it, subDirs.end());
