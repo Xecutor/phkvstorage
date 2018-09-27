@@ -14,9 +14,15 @@ namespace phkvs{
 class PHKVStorage{
 public:
 
+    struct Options{
+        size_t cachePoolSize{1024};
+    };
+
     using ValueType = boost::variant<uint8_t, uint16_t, uint32_t, uint64_t,
             float, double, std::string, std::vector<uint8_t>>;
     using TimePoint = std::chrono::system_clock::time_point;
+
+    using UniquePtr = std::unique_ptr<PHKVStorage>;
 
     enum class EntryType {
         key,
@@ -36,6 +42,8 @@ public:
         std::string mountPointPath;
         VolumeId volumeId;
     };
+
+    static UniquePtr create(const Options& options);
 
     virtual VolumeId createAndMountVolume(const boost::filesystem::path& volumePath, boost::string_view volumeName,
                                       boost::string_view mountPointPath) = 0;

@@ -28,7 +28,7 @@ find_package(spdlog CONFIG REQUIRED)
 
 add_library(phkvstorage FileSystem.cpp SmallToMediumFileStorage.cpp SmallToMediumFileStorage.hpp FileVersion.hpp UIntArrayHexFormatter.hpp 
     FileOpsHelpers.hpp BigFileStorage.cpp PHKVStorage.cpp PHKVStorage.hpp StorageVolume.cpp StorageVolume.hpp
-    KeyPathUtil.hpp StringViewFormatter.hpp)
+    KeyPathUtil.hpp StringViewFormatter.hpp LRUPriorityCachePool.hpp)
 
 target_link_libraries(phkvstorage Boost::system Boost::filesystem fmt::fmt spdlog::spdlog)
 target_include_directories(phkvstorage PUBLIC ${PROJECT_SOURCE_DIR})
