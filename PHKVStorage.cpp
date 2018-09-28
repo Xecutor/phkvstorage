@@ -26,7 +26,7 @@ std::string toString(boost::string_view sv)
 
 bool isPrefixOf(boost::string_view prefix, boost::string_view path)
 {
-    if(prefix.length()>path.length())
+    if(prefix.length() > path.length())
     {
         return false;
     }
@@ -83,8 +83,12 @@ private:
         boost::filesystem::path volumePath;
         std::string volumeName;
         VolumeId volumeId;
+        uint32_t lastOpSeqAssigned = 0;
+        uint32_t lastOpSeqExecuted = 0;
+        bool abortOp = false;
         StorageVolume::UniquePtr volume;
         std::mutex volumeMtx;
+        std::condition_variable volumeCondVar;
     };
 
     static boost::filesystem::path
@@ -145,7 +149,11 @@ private:
     VolumeId m_lastVolumeId{0};
     std::map<VolumeId, MountPointsMap::iterator> m_volumeIdMap;
 
-    struct VolumeNotFound{};
+    std::tuple<MountPointInfoPtr, uint32_t> getVolumeByIdAndAllocateOpSeq(VolumeId volumeId);
+    void executeOpInSequence(MountPointInfo& mnt, uint32_t opSeq, std::function<void()> op);
+
+    struct VolumeNotFound {
+    };
     using FoundVolumes = boost::variant<VolumeNotFound, MountPointInfoPtr, std::vector<MountPointInfoPtr>>;
 
     FoundVolumes findVolumeByPath(boost::string_view path);
@@ -153,13 +161,18 @@ private:
     std::atomic_uint_fast32_t m_cacheSeq{0};
 
     struct CacheTreeNode : boost::intrusive::set_base_hook<> {
+
+        boost::intrusive::list_member_hook<> poolListNode;
+        uint8_t poolPrio;
+
         using CacheTree = boost::intrusive::rbtree<CacheTreeNode>;
         struct Dir {
             CacheTree tree;
+            bool overlapingDir = false;
+            bool cacheComplete = false;
         };
 
         EntryType type;
-        bool overlapingDir;
         std::string name;
         uint32_t cacheSeq;
         VolumeId volumeId;
@@ -174,39 +187,42 @@ private:
         {
             return boost::get<ValueType>(value);
         }
+    };
 
-        friend bool operator<(const CacheTreeNode& l, const CacheTreeNode& r)
+    struct CacheNodeComparator {
+        bool operator()(const CacheTreeNode& l, const CacheTreeNode& r) const
         {
             return l.name < r.name;
         }
 
-        friend bool operator<(const CacheTreeNode& l, boost::string_view rname)
+        bool operator()(const CacheTreeNode& l, boost::string_view rname) const
         {
             return l.name < rname;
         }
 
-        friend bool operator<(boost::string_view lname, const CacheTreeNode& r)
+        bool operator()(boost::string_view lname, const CacheTreeNode& r) const
         {
             return lname < r.name;
         }
-
     };
 
     mutable std::mutex m_cacheMtx;
-    using CachePoolType = LRUPriorityCachePool<CacheTreeNode, 2>;
+    using CachePoolType = LRUPriorityCachePool<CacheTreeNode, &CacheTreeNode::poolListNode, &CacheTreeNode::poolPrio, 2>;
     CachePoolType m_cachePool;
     CacheTreeNode m_cacheRoot;
 
     CacheTreeNode* findInCache(const std::vector<boost::string_view>& path);
-    void cacheNodeReuseNotify(CachePoolType::PoolNode* node);
+
+    void cacheNodeReuseNotify(CacheTreeNode* node);
 };
 
-PHKVStorageImpl::PHKVStorageImpl(const Options& options):
-    m_cachePool(options.cachePoolSize, std::bind(&PHKVStorageImpl::cacheNodeReuseNotify, this, std::placeholders::_1))
+PHKVStorageImpl::PHKVStorageImpl(const Options& options) :
+        m_cachePool(options.cachePoolSize,
+                std::bind(&PHKVStorageImpl::cacheNodeReuseNotify, this, std::placeholders::_1))
 {
 }
 
-void PHKVStorageImpl::cacheNodeReuseNotify(CachePoolType::PoolNode* node)
+void PHKVStorageImpl::cacheNodeReuseNotify(CacheTreeNode* node)
 {
 
 }
@@ -314,6 +330,33 @@ std::vector<PHKVStorageImpl::VolumeInfo> PHKVStorageImpl::getMountVolumesInfo() 
     return rv;
 }
 
+std::tuple<PHKVStorageImpl::MountPointInfoPtr, uint32_t> PHKVStorageImpl::getVolumeByIdAndAllocateOpSeq(VolumeId volumeId)
+{
+    LockGuard guard(m_mountInfoMtx);
+    auto it = m_volumeIdMap.find(volumeId);
+    if(it == m_volumeIdMap.end())
+    {
+        return {};
+    }
+    auto rv = it->second->second;
+    return {rv, ++rv->lastOpSeqAssigned};
+}
+
+void PHKVStorageImpl::executeOpInSequence(MountPointInfo& mnt, uint32_t opSeq, std::function<void()> op)
+{
+    std::unique_lock<std::mutex> lock(mnt.volumeMtx);
+    while(opSeq - mnt.lastOpSeqExecuted != 1 && !mnt.abortOp)
+    {
+        mnt.volumeCondVar.wait(lock);
+    }
+    if(mnt.abortOp)
+    {
+        return;
+    }
+    op();
+    mnt.lastOpSeqExecuted = opSeq;
+}
+
 PHKVStorageImpl::FoundVolumes PHKVStorageImpl::findVolumeByPath(boost::string_view path)
 {
     LockGuard lg(m_mountInfoMtx);
@@ -345,31 +388,91 @@ PHKVStorageImpl::FoundVolumes PHKVStorageImpl::findVolumeByPath(boost::string_vi
     }
 
     std::vector<MountPointInfoPtr> rv;
-    for(;it!=end;++it)
+    for(; it != end; ++it)
     {
         rv.push_back(it->second);
     }
+    std::sort(rv.begin(), rv.end(), [](const MountPointInfoPtr& l, const MountPointInfoPtr& r){return l->volumeId < r->volumeId;});
     return {rv};
 }
 
 PHKVStorageImpl::CacheTreeNode* PHKVStorageImpl::findInCache(const std::vector<boost::string_view>& path)
 {
     CacheTreeNode* node = &m_cacheRoot;
-    for(auto& item : path)
+    for(auto& item: path)
     {
-        if(node->type==EntryType::key)
+        if(node->cacheSeq != m_cacheSeq)
         {
             return nullptr;
         }
-        //auto it = node->getDir().tree;
+        if(node->type == EntryType::key)
+        {
+            return nullptr;
+        }
+        auto& dir = node->getDir();
+        auto it = dir.tree.find(item, CacheNodeComparator());
+        if(it == dir.tree.end())
+        {
+            return nullptr;
+        }
+        node = &*it;
     }
-    return nullptr;
+    return node;
 }
 
 void PHKVStorageImpl::store(boost::string_view keyPath, const ValueType& value)
 {
     auto path = splitKeyPath(keyPath);
+    if(path.empty())
+    {
+        throw std::runtime_error(fmt::format("Invalid path {}", keyPath));
+    }
+    auto key = path.back();
+    path.pop_back();
+    bool cached = false;
+    {
+        MountPointInfoPtr mount;
+        uint32_t volumeOpSeq;
+        {
+            LockGuard guard(m_cacheMtx);
+            auto node = findInCache(path);
+            if(node)
+            {
+                cached = true;
+                auto it = node->getDir().tree.find(key, CacheNodeComparator());
+                if(it != node->getDir().tree.end())
+                {
+                    m_cachePool.touch(&*it);
+                    std::tie(mount, volumeOpSeq) = getVolumeByIdAndAllocateOpSeq(it->volumeId);
+                }
+            }
+        }
+        if(mount)
+        {
+            executeOpInSequence(*mount, volumeOpSeq, [mount, keyPath, &value]() {
+                mount->volume->store(keyPath, value);
+            });
+            return;
+        }
+    }
+    FoundVolumes volumes = findVolumeByPath(keyPath);
+    if(volumes.type() == typeid(VolumeNotFound))
+    {
+        throw std::runtime_error(fmt::format("No volumes were mount for path {}", keyPath));
+    }
+    if(cached)
+    {
+        MountPointInfoPtr mount;
+        if(volumes.type() == typeid(VolumeId))
+        {
+            mount = boost::get<MountPointInfoPtr>(volumes);
+        }
+        else
+        {
+            mount = boost::get<std::vector<MountPointInfoPtr>>(volumes).front();
+        }
 
+    }
 }
 
 void PHKVStorageImpl::storeExpiring(boost::string_view keyPath, const ValueType& value, TimePoint expTime)

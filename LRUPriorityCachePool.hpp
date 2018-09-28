@@ -10,23 +10,25 @@
 
 namespace phkvs {
 
-template<class V, uint8_t MXP>
+template<class V,
+        boost::intrusive::list_member_hook<> (V::*listNodePtr),
+        uint8_t (V::*prioPtr),
+        uint8_t MXP>
 class LRUPriorityCachePool {
 public:
-    struct PoolNode {
-        boost::intrusive::list_member_hook<> listHook;
-        V value;
-        uint8_t prio;
-    };
+//    struct PoolNode {
+//        boost::intrusive::list_member_hook<> listHook;
+//        uint8_t prio;
+//    };
 
-    LRUPriorityCachePool(size_t maxItems, std::function<void(PoolNode*)> reuseNotify) :
+    LRUPriorityCachePool(size_t maxItems, std::function<void(V*)> reuseNotify) :
             m_maxItems(maxItems), m_reuseNotify(reuseNotify)
     {
     }
 
     LRUPriorityCachePool(const LRUPriorityCachePool&) = delete;
 
-    PoolNode* allocate(uint8_t prio)
+    V* allocate(uint8_t prio)
     {
         if(prio >= MXP)
         {
@@ -50,7 +52,7 @@ public:
                 auto rv = m_prioLists[idx].front();
                 m_reuseNotify(rv);
                 m_prioLists[idx].pop_front();
-                rv->prio = prio;
+                rv->*prioPtr = prio;
                 m_prioLists[prio].push_back(rv);
                 return rv;
             }
@@ -58,27 +60,29 @@ public:
         return nullptr;
     }
 
-    void touch(PoolNode* node)
+    void touch(V* node)
     {
-        m_prioLists[node->prio].erase(node);
-        m_prioLists[node->prio].push_back(node);
+        uint8_t prio = node->*prioPtr;
+        m_prioLists[prio].erase(m_prioLists[prio].iterator_to(*node));
+        m_prioLists[prio].push_back(*node);
     }
 
-    void free(PoolNode* node)
+    void free(V* node)
     {
-        m_prioLists[node->prio].erase(node);
+        uint8_t prio = node->*prioPtr;
+        m_prioLists[prio].erase(m_prioLists[prio].iterator_to(*node));
         m_freeItems.push_back(node);
     }
 
 private:
 
-    using PoolNodeHookOption = boost::intrusive::member_hook<PoolNode, boost::intrusive::list_member_hook<>, &PoolNode::listHook>;
-    using PoolList = boost::intrusive::list<PoolNode, PoolNodeHookOption>;
+    using PoolNodeHookOption = boost::intrusive::member_hook<V, boost::intrusive::list_member_hook<>, listNodePtr>;
+    using PoolList = boost::intrusive::list<V, PoolNodeHookOption>;
     std::array<PoolList, MXP> m_prioLists;
     size_t m_maxItems;
-    std::function<void(PoolNode*)> m_reuseNotify;
+    std::function<void(V*)> m_reuseNotify;
     PoolList m_freeItems;
-    std::deque<PoolNode> m_mainPool;
+    std::deque<V> m_mainPool;
 };
 
 }
