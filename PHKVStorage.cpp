@@ -1,6 +1,7 @@
 #include "PHKVStorage.hpp"
 
 #include <mutex>
+#include <condition_variable>
 #include <map>
 #include <stdexcept>
 #include <atomic>
