@@ -26,6 +26,15 @@ public:
     {
     }
 
+    ~LRUPriorityCachePool()
+    {
+        m_freeItems.clear();
+        for(size_t i=0;i<MXP;++i)
+        {
+            m_prioLists[i].clear();
+        }
+    }
+
     LRUPriorityCachePool(const LRUPriorityCachePool&) = delete;
 
     V* allocate(uint8_t prio)
@@ -36,25 +45,27 @@ public:
         }
         if(!m_freeItems.empty())
         {
-            auto rv = m_freeItems.front();
+            auto& rv = m_freeItems.front();
             m_freeItems.pop_front();
-            return rv;
+            m_prioLists[prio].push_back(rv);
+            return &rv;
         }
         if(m_mainPool.size() < m_maxItems)
         {
             m_mainPool.emplace_back();
+            m_prioLists[prio].push_back(m_mainPool.back());
             return &m_mainPool.back();
         }
         for(uint8_t idx = MXP; idx-- > 0;)
         {
             if(!m_prioLists[idx].empty())
             {
-                auto rv = m_prioLists[idx].front();
-                m_reuseNotify(rv);
+                auto& rv = m_prioLists[idx].front();
+                m_reuseNotify(&rv);
                 m_prioLists[idx].pop_front();
-                rv->*prioPtr = prio;
+                rv.*prioPtr = prio;
                 m_prioLists[prio].push_back(rv);
-                return rv;
+                return &rv;
             }
         }
         return nullptr;

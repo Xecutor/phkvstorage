@@ -21,7 +21,10 @@ inline std::vector<boost::string_view> splitKeyPath(const boost::string_view& ke
             }
             break;
         }
-        result.emplace_back(keyPath.data() + lastPos, pos - lastPos);
+        if(pos - lastPos != 0)
+        {
+            result.emplace_back(keyPath.data() + lastPos, pos - lastPos);
+        }
         lastPos = pos + 1;
     } while(lastPos < keyPath.length());
     return result;
