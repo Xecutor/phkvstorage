@@ -82,7 +82,7 @@ public:
     {
         uint8_t prio = node->*prioPtr;
         m_prioLists[prio].erase(m_prioLists[prio].iterator_to(*node));
-        m_freeItems.push_back(node);
+        m_freeItems.push_back(*node);
     }
 
 private:

@@ -15,6 +15,7 @@ public:
 
     using ValueType = PHKVStorage::ValueType;
     using TimePoint = PHKVStorage::TimePoint;
+    using TimePointOpt = PHKVStorage::TimePointOpt;
     using DirEntry = PHKVStorage::DirEntry;
 
     static UniquePtr open(FileSystem::UniqueFilePtr&& mainFile,
@@ -27,8 +28,7 @@ public:
     static void initFileLogger(const boost::filesystem::path& filePath, size_t maxSize, size_t maxFiles);
     static void initStdoutLogger();
 
-    virtual void store(boost::string_view keyPath, const ValueType& value) = 0;
-    virtual void storeExpiring(boost::string_view keyPath, const ValueType& value, TimePoint expTime) = 0;
+    virtual void store(boost::string_view keyPath, const ValueType& value, TimePointOpt expTime = {}) = 0;
 
     virtual boost::optional<ValueType> lookup(boost::string_view keyPath) = 0;
 

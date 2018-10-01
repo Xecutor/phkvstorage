@@ -340,8 +340,8 @@ TEST_F(VolumeTest, Expiration)
 {
     const auto key1 = "/expiresInSecond";
     const auto key2 = "/expiresInTwoSeconds";
-    volume->storeExpiring(key1, uint8_t(1), std::chrono::system_clock::now() + std::chrono::seconds(1));
-    volume->storeExpiring(key2, uint8_t(2), std::chrono::system_clock::now() + std::chrono::seconds(2));
+    volume->store(key1, uint8_t(1), std::chrono::system_clock::now() + std::chrono::seconds(1));
+    volume->store(key2, uint8_t(2), std::chrono::system_clock::now() + std::chrono::seconds(2));
     EXPECT_TRUE(volume->lookup(key1));
     EXPECT_TRUE(volume->lookup(key2));
     auto dirOpt = volume->getDirEntries("/");

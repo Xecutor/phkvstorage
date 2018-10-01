@@ -55,33 +55,41 @@ TEST(SimpleTest, BoostStringView)
 
 TEST(SimpleTest, KeyPathUtil)
 {
-    auto pathVector = phkvs::splitKeyPath("/foo/bar");
-    EXPECT_EQ(pathVector[0], "foo");
-    EXPECT_EQ(pathVector[1], "bar");
+    auto pathKey = phkvs::splitKeyPath("/foo/bar");
+    EXPECT_EQ(pathKey.path[0], "foo");
+    EXPECT_EQ(pathKey.key, "bar");
 
-    pathVector = phkvs::splitKeyPath("foo/bar");
-    EXPECT_EQ(pathVector[0], "foo");
-    EXPECT_EQ(pathVector[1], "bar");
+    pathKey = phkvs::splitKeyPath("foo/bar");
+    EXPECT_EQ(pathKey.path[0], "foo");
+    EXPECT_EQ(pathKey.key, "bar");
 
-    pathVector = phkvs::splitKeyPath("foo/bar/");
-    EXPECT_EQ(pathVector[0], "foo");
-    EXPECT_EQ(pathVector[1], "bar");
+    pathKey = phkvs::splitKeyPath("foo/bar/");
+    EXPECT_EQ(pathKey.path[0], "foo");
+    EXPECT_EQ(pathKey.key, "bar");
 
-    pathVector = phkvs::splitKeyPath("/foo/bar/");
-    EXPECT_EQ(pathVector[0], "foo");
-    EXPECT_EQ(pathVector[1], "bar");
+    pathKey = phkvs::splitKeyPath("/foo/bar/");
+    EXPECT_EQ(pathKey.path[0], "foo");
+    EXPECT_EQ(pathKey.key, "bar");
 
-    pathVector = phkvs::splitKeyPath("/foo");
-    EXPECT_EQ(pathVector[0], "foo");
+    pathKey = phkvs::splitKeyPath("/foo");
+    EXPECT_TRUE(pathKey.path.empty());
+    EXPECT_EQ(pathKey.key, "foo");
 
-    pathVector = phkvs::splitKeyPath("foo");
-    EXPECT_EQ(pathVector[0], "foo");
+    pathKey = phkvs::splitKeyPath("foo");
+    EXPECT_TRUE(pathKey.path.empty());
+    EXPECT_EQ(pathKey.key, "foo");
 
-    pathVector = phkvs::splitKeyPath("foo/");
-    EXPECT_EQ(pathVector[0], "foo");
+    pathKey = phkvs::splitKeyPath("foo/");
+    EXPECT_TRUE(pathKey.path.empty());
+    EXPECT_EQ(pathKey.key, "foo");
 
-    pathVector = phkvs::splitKeyPath("/foo/bar/baz");
-    EXPECT_EQ(pathVector[0], "foo");
-    EXPECT_EQ(pathVector[1], "bar");
-    EXPECT_EQ(pathVector[2], "baz");
+    pathKey = phkvs::splitKeyPath("/foo/bar/baz");
+    EXPECT_EQ(pathKey.path[0], "foo");
+    EXPECT_EQ(pathKey.path[1], "bar");
+    EXPECT_EQ(pathKey.key, "baz");
+
+    pathKey = phkvs::splitKeyPath("/foo//bar//baz");
+    EXPECT_EQ(pathKey.path[0], "foo");
+    EXPECT_EQ(pathKey.path[1], "bar");
+    EXPECT_EQ(pathKey.key, "baz");
 }

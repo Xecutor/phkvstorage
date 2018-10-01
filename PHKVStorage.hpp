@@ -21,6 +21,7 @@ public:
     using ValueType = boost::variant<uint8_t, uint16_t, uint32_t, uint64_t,
             float, double, std::string, std::vector<uint8_t>>;
     using TimePoint = std::chrono::system_clock::time_point;
+    using TimePointOpt = boost::optional<std::chrono::system_clock::time_point>;
 
     using UniquePtr = std::unique_ptr<PHKVStorage>;
 
@@ -52,8 +53,7 @@ public:
     virtual void unmountVolume(VolumeId volumeId) = 0;
     virtual std::vector<VolumeInfo> getMountVolumesInfo() const = 0;
 
-    virtual void store(boost::string_view keyPath, const ValueType& value) = 0;
-    virtual void storeExpiring(boost::string_view keyPath, const ValueType& value, TimePoint expTime) = 0;
+    virtual void store(boost::string_view keyPath, const ValueType& value, TimePointOpt expTime = {}) = 0;
 
     virtual boost::optional<ValueType> lookup(boost::string_view keyPath) = 0;
 

@@ -28,7 +28,7 @@ public:
     }
 };
 
-TEST_F(PHKVStorageTest, createAndMountUnmount)
+TEST_F(PHKVStorageTest, createUnmountMount)
 {
     createStorage();
 
@@ -43,7 +43,7 @@ TEST_F(PHKVStorageTest, createAndMountUnmount)
     EXPECT_TRUE(storage->lookup("/hello"));
 }
 
-TEST_F(PHKVStorageTest, createAndMountMultiple)
+TEST_F(PHKVStorageTest, mountMultiple)
 {
     createStorage();
 
@@ -61,7 +61,7 @@ TEST_F(PHKVStorageTest, createAndMountMultiple)
 
 }
 
-TEST_F(PHKVStorageTest, createAndMountMultiplePrio)
+TEST_F(PHKVStorageTest, mountMultiplePrio)
 {
     createStorage();
     auto volId = storage->createAndMountVolume(".", "test1", "/foo/bar");
@@ -74,9 +74,11 @@ TEST_F(PHKVStorageTest, createAndMountMultiplePrio)
     EXPECT_FALSE(storage->lookup("/foo/bar/hello"));
 }
 
-TEST_F(PHKVStorageTest, createAndMountMultipleSameMP)
+TEST_F(PHKVStorageTest, mountMultipleSameMany)
 {
-    createStorage({200000});
+    phkvs::PHKVStorage::Options opt;
+    opt.cachePoolSize = 200000;
+    createStorage(opt);
     std::vector<std::string> volumes;
     std::vector<std::pair<std::string, uint32_t>> keysValues;
     for(size_t i = 0; i < 1000; ++i)
@@ -109,4 +111,18 @@ TEST_F(PHKVStorageTest, createAndMountMultipleSameMP)
             EXPECT_EQ(boost::get<uint32_t>(*valOpt), value);
         }
     }
+}
+
+TEST_F(PHKVStorageTest, erase)
+{
+    createStorage();
+    auto volId = storage->createAndMountVolume(".", "test", "/");
+    addVolumeToCleanup(".", "test");
+    storage->store("/key", "value");
+    EXPECT_TRUE(storage->lookup("/key"));
+    storage->eraseKey("/key");
+    EXPECT_FALSE(storage->lookup("/key"));
+    storage->unmountVolume(volId);
+    storage->mountVolume(".", "test", "/");
+    EXPECT_FALSE(storage->lookup("/key"));
 }

@@ -35,9 +35,7 @@ public:
                       SmallToMediumFileStorage::UniquePtr&& stmFileStorage,
                       BigFileStorage::UniquePtr&& bigFileStorage);
 
-    void store(boost::string_view keyPath, const ValueType& value) override;
-
-    void storeExpiring(boost::string_view keyPath, const ValueType& value, TimePoint expTime) override;
+    void store(boost::string_view keyPath, const ValueType& value, TimePointOpt expTime) override;
 
     boost::optional<ValueType> lookup(boost::string_view keyPath) override;
 
@@ -953,33 +951,25 @@ void StorageVolumeImpl::storeNode(OutputBinBuffer& out, SkipListNode& node)
     }
 }
 
-void StorageVolumeImpl::store(boost::string_view keyPath, const StorageVolumeImpl::ValueType& value)
+void
+StorageVolumeImpl::store(boost::string_view keyPath, const StorageVolumeImpl::ValueType& value, TimePointOpt expTime)
 {
-    store(keyPath, value, 0);
-}
-
-void StorageVolumeImpl::storeExpiring(boost::string_view keyPath, const ValueType& value, TimePoint expTime)
-{
-    store(keyPath, value, std::chrono::duration_cast<std::chrono::milliseconds>(expTime.time_since_epoch()).count());
+    uint64_t expTimeMs = expTime ? std::chrono::duration_cast<std::chrono::milliseconds>(
+            (*expTime).time_since_epoch()).count() : 0;
+    store(keyPath, value, expTimeMs);
 }
 
 void StorageVolumeImpl::store(boost::string_view keyPath, const StorageVolumeImpl::ValueType& value, uint64_t expTime)
 {
-    auto path = splitKeyPath(keyPath);
-    if(path.empty() || path.back().length() == 0)
-    {
-        throw std::runtime_error("StorageVolume::store:Key or key path cannot be empty.");
-    }
-    auto key = path.back();
-    path.pop_back();
+    auto pathKey = splitKeyPath(keyPath);
     OffsetType offset = k_rootListOffset;
-    if(m_lastDirHeadOffset != 0 && keyPath.compare(0, keyPath.length() - key.length(), m_lastDir) == 0)
+    if(m_lastDirHeadOffset != 0 && keyPath.compare(0, keyPath.length() - pathKey.key.length(), m_lastDir) == 0)
     {
         offset = m_lastDirHeadOffset;
     }
     else
     {
-        for(auto& dir:path)
+        for(auto& dir:pathKey.path)
         {
             Entry entry;
             if(!listLookup(offset, dir, entry))
@@ -999,41 +989,35 @@ void StorageVolumeImpl::store(boost::string_view keyPath, const StorageVolumeImp
                 offset = boost::get<uint64_t>(entry.value.value);
             }
         }
-        m_lastDir.assign(keyPath.data(), 0, keyPath.length() - key.length());
+        m_lastDir.assign(keyPath.data(), 0, keyPath.length() - pathKey.key.length());
         m_lastDirHeadOffset = offset;
     }
     Entry keyEntry;
-    keyEntry.setValue(std::string(key.data(), key.length()), value);
+    keyEntry.setValue(std::string(pathKey.key.data(), pathKey.key.length()), value);
     keyEntry.expirationDateTime = expTime;
     listInsert(offset, std::move(keyEntry));
 }
 
 boost::optional<StorageVolumeImpl::ValueType> StorageVolumeImpl::lookup(boost::string_view keyPath)
 {
-    auto path = splitKeyPath(keyPath);
-    if(path.empty() || path.back().length() == 0)
-    {
-        return {};
-    }
-    auto key = path.back();
-    path.pop_back();
+    auto pathKey = splitKeyPath(keyPath);
     OffsetType offset;
-    if(m_lastDirHeadOffset != 0 && keyPath.compare(0, keyPath.length() - key.length(), m_lastDir) == 0)
+    if(m_lastDirHeadOffset != 0 && keyPath.compare(0, keyPath.length() - pathKey.key.length(), m_lastDir) == 0)
     {
         offset = m_lastDirHeadOffset;
     }
     else
     {
-        offset = followPath(path);
+        offset = followPath(pathKey.path);
         if(!offset)
         {
             return {};
         }
-        m_lastDir.assign(keyPath.data(), 0, keyPath.length() - key.length());
+        m_lastDir.assign(keyPath.data(), 0, keyPath.length() - pathKey.key.length());
         m_lastDirHeadOffset = offset;
     }
     Entry keyEntry;
-    if(!listLookup(offset, key, keyEntry))
+    if(!listLookup(offset, pathKey.key, keyEntry))
     {
         return {};
     }
@@ -1046,24 +1030,18 @@ boost::optional<StorageVolumeImpl::ValueType> StorageVolumeImpl::lookup(boost::s
 
 void StorageVolumeImpl::eraseKey(boost::string_view keyPath)
 {
-    auto path = splitKeyPath(keyPath);
-    if(path.empty() || path.back().length() == 0)
-    {
-        return;
-    }
-    auto key = path.back();
-    path.pop_back();
-    OffsetType offset = followPath(path);
+    auto pathKey = splitKeyPath(keyPath);
+    OffsetType offset = followPath(pathKey.path);
     if(!offset)
     {
         return;
     }
-    listErase(offset, EntryType::key, key);
+    listErase(offset, EntryType::key, pathKey.key);
 }
 
 void StorageVolumeImpl::eraseDirRecursive(boost::string_view dirPath)
 {
-    auto path = splitKeyPath(dirPath);
+    auto path = splitDirPath(dirPath);
     if(path.empty() || path.back().length() == 0)
     {
         return;
@@ -1088,7 +1066,7 @@ void StorageVolumeImpl::eraseDirRecursive(boost::string_view dirPath)
 
 boost::optional<std::vector<StorageVolumeImpl::DirEntry>> StorageVolumeImpl::getDirEntries(boost::string_view dirPath)
 {
-    auto path = splitKeyPath(dirPath);
+    auto path = splitDirPath(dirPath);
     OffsetType offset = followPath(path);
     if(!offset)
     {
