@@ -67,7 +67,7 @@ class PHKVStorageImpl : public PHKVStorage {
 public:
     PHKVStorageImpl(const Options& options);
 
-    ~PHKVStorageImpl();
+    ~PHKVStorageImpl()override;
 
     VolumeId createAndMountVolume(const boost::filesystem::path& volumePath, boost::string_view volumeName,
                                   boost::string_view mountPointPath) override;
@@ -189,7 +189,7 @@ private:
     };
     using FoundVolumes = boost::variant<VolumeNotFound, MountPointInfoPtr, std::vector<MountPointInfoPtr>>;
 
-    FoundVolumes findVolumesByPath(boost::string_view keyPath);
+    std::vector<MountPointInfoPtr> findVolumesByPath(boost::string_view keyPath);
 
     void getVolumesFromTree(const MountTree& tree, const std::vector<boost::string_view>& path, size_t idx,
                             std::vector<MountPointInfoPtr>& volumes);
@@ -301,10 +301,9 @@ private:
 
     std::tuple<FindResult, CacheTreeNode*> findInCache(const std::vector<boost::string_view>& path);
 
-    void
-    storeInCache(const PathAndKey& pathKey, const ValueType& value, VolumeId volumeId, uint8_t prio);
-
+    void storeInCache(const PathAndKey& pathKey, const ValueType& value, VolumeId volumeId, uint8_t prio);
     void fillCache(const std::vector<boost::string_view>& path);
+    void eraseFromCache(CacheTreeNode* dirNode, CacheTreeNode* childNode);
 
     void cacheNodeReuseNotify(CacheTreeNode* node);
 };
@@ -560,12 +559,12 @@ boost::string_view PHKVStorageImpl::getLocalMountPath(const boost::string_view& 
     return fullPathSv.substr(mnt.mountPoint.length());
 }
 
-PHKVStorageImpl::FoundVolumes PHKVStorageImpl::findVolumesByPath(boost::string_view keyPath)
+std::vector<PHKVStorageImpl::MountPointInfoPtr> PHKVStorageImpl::findVolumesByPath(boost::string_view keyPath)
 {
     LockGuard guard(m_mountInfoMtx);
     if(m_volumeIdMap.empty())
     {
-        return VolumeNotFound();
+        return {};
     }
 
     auto pathKey = splitKeyPath(keyPath);
@@ -574,19 +573,9 @@ PHKVStorageImpl::FoundVolumes PHKVStorageImpl::findVolumesByPath(boost::string_v
     std::vector<MountPointInfoPtr> rv;
     getVolumesFromTree(m_mountTree, pathKey.path, 0, rv);
 
-    if(rv.empty())
-    {
-        return VolumeNotFound();
-    }
-
-    if(rv.size() == 1)
-    {
-        return {rv[0]};
-    }
-
     std::sort(rv.begin(), rv.end(),
               [](const MountPointInfoPtr& l, const MountPointInfoPtr& r) { return l->volumeId < r->volumeId; });
-    return {rv};
+    return rv;
 }
 
 void PHKVStorageImpl::getVolumesFromTree(const MountTree& tree, const std::vector<boost::string_view>& path, size_t idx,
@@ -712,7 +701,7 @@ void PHKVStorageImpl::fillCache(const std::vector<boost::string_view>& path)
                         auto node = cacheDir.find(dirEntry.name);
                         if(!node)
                         {
-                            auto newCacheNode = m_cachePool.allocate(mountNode->childMounts > 1 ? 1 : 0);
+                            auto newCacheNode = m_cachePool.allocate(mountNode->childMounts > 1 ? 0 : 1);
                             if(dirEntry.type == EntryType::key)
                             {
                                 tempKeyPath = toString(getLocalMountPath(fullPath, mountPoint));
@@ -785,7 +774,7 @@ void PHKVStorageImpl::fillCache(const std::vector<boost::string_view>& path)
                 auto node = cacheNode->getDir().find(item);
                 if(!node)
                 {
-                    auto newCacheNode = m_cachePool.allocate(mountNode->childMounts > 1 ? 1 : 0);
+                    auto newCacheNode = m_cachePool.allocate(mountNode->childMounts > 1 ? 0 : 1);
                     initDirCacheNode(*newCacheNode, toString(item), cacheNode);
                     cacheNode->getDir().content.insert_unique(*newCacheNode);
                     cacheNode = newCacheNode;
@@ -802,65 +791,56 @@ void PHKVStorageImpl::fillCache(const std::vector<boost::string_view>& path)
     } while(idx <= path.size());
 }
 
+void PHKVStorageImpl::eraseFromCache(CacheTreeNode* dirNode, CacheTreeNode* childNode)
+{
+    dirNode->getDir().erase(childNode);
+    m_cachePool.free(childNode);
+    if(dirNode->getDir().content.empty() && dirNode->parent)
+    {
+        eraseFromCache(dirNode->parent, dirNode);
+    }
+}
+
 void PHKVStorageImpl::store(boost::string_view keyPath, const ValueType& value, TimePointOpt expTime)
 {
     auto pathKey = splitKeyPath(keyPath);
-    {
-        MountPointInfoPtr mount;
-        uint32_t volumeOpSeq;
-        {
-            LockGuard guard(m_cacheMtx);
-            FindResult result;
-            CacheTreeNode* node;
-            std::tie(result, node) = findInCache(pathKey.path);
-            if(result == FindResult::inconsistentCache)
-            {
-                fillCache(pathKey.path);
-                std::tie(result, node) = findInCache(pathKey.path);
-            }
-
-
-            if(node)
-            {
-                auto keyNode = node->getDir().find(pathKey.key);
-                if(keyNode)
-                {
-                    keyNode->value = value;
-                    m_cachePool.touch(keyNode);
-                    std::tie(mount, volumeOpSeq) = getVolumeByIdAndAllocateOpSeq(keyNode->volumeId);
-                }
-            }
-        }
-        if(mount)
-        {
-            executeOpInSequence(*mount, volumeOpSeq, [mount, keyPath, &value, expTime]() {
-                mount->volume->store(keyPath.substr(mount->mountPoint.length()), value, expTime);
-            });
-            return;
-        }
-    }
-    FoundVolumes volumes = findVolumesByPath(keyPath);
-    if(isVariantType<VolumeNotFound>(volumes))
-    {
-        throw std::runtime_error(fmt::format("No volumes were mount for path {}", keyPath));
-    }
-
     MountPointInfoPtr mount;
-    uint8_t prio = 1;
-    if(isVariantType<MountPointInfoPtr>(volumes))
-    {
-        mount = boost::get<MountPointInfoPtr>(volumes);
-    }
-    else
-    {
-        mount = boost::get<std::vector<MountPointInfoPtr>>(volumes).front();
-        prio = 0;
-    }
     uint32_t volumeOpSeq;
     {
         LockGuard guard(m_cacheMtx);
-        storeInCache(pathKey, value, mount->volumeId, prio);
-        volumeOpSeq = acquireVolumeOpSeq(*mount);
+        FindResult result;
+        CacheTreeNode* node;
+        std::tie(result, node) = findInCache(pathKey.path);
+        if(result == FindResult::inconsistentCache)
+        {
+            fillCache(pathKey.path);
+            std::tie(result, node) = findInCache(pathKey.path);
+        }
+
+
+        if(node)
+        {
+            auto keyNode = node->getDir().find(pathKey.key);
+            if(keyNode)
+            {
+                keyNode->value = value;
+                m_cachePool.touch(keyNode);
+                std::tie(mount, volumeOpSeq) = getVolumeByIdAndAllocateOpSeq(keyNode->volumeId);
+            }
+        }
+        if(!mount)
+        {
+            auto volumes = findVolumesByPath(keyPath);
+            if(volumes.empty())
+            {
+                throw std::runtime_error(fmt::format("No volumes were mount for path {}", keyPath));
+            }
+
+            uint8_t prio = volumes.size() > 1 ? 0 : 1;
+            mount = volumes.front();
+            storeInCache(pathKey, value, mount->volumeId, prio);
+            volumeOpSeq = acquireVolumeOpSeq(*mount);
+        }
     }
     executeOpInSequence(*mount, volumeOpSeq, [&mount, keyPath, &value, expTime]() {
         mount->volume->store(getLocalMountPath(keyPath, *mount), value, expTime);
@@ -916,14 +896,13 @@ void PHKVStorageImpl::eraseKey(boost::string_view keyPath)
             if(keyNode && isActualCacheKeyNode(*keyNode))
             {
                 std::tie(mount, volumeOpSeq) = getVolumeByIdAndAllocateOpSeq(keyNode->volumeId);
-                node->getDir().erase(keyNode);
-                m_cachePool.free(keyNode);
+                eraseFromCache(node, keyNode);
             }
         }
     }
     if(mount)
     {
-        executeOpInSequence(*mount, volumeOpSeq, [mount, keyPath](){
+        executeOpInSequence(*mount, volumeOpSeq, [&mount, keyPath](){
             mount->volume->eraseKey(keyPath);
         });
     }
@@ -931,11 +910,70 @@ void PHKVStorageImpl::eraseKey(boost::string_view keyPath)
 
 void PHKVStorageImpl::eraseDirRecursive(boost::string_view dirPath)
 {
+    auto path = splitDirPath(dirPath);
+    std::vector<std::pair<MountPointInfoPtr, uint32_t>> mops;
+    {
+        LockGuard guard(m_cacheMtx);
+        FindResult result;
+        CacheTreeNode* node;
+        std::tie(result, node) = findInCache(path);
+        if(result == FindResult::inconsistentCache)
+        {
+            fillCache(path);
+            std::tie(result, node) = findInCache(path);
+        }
 
+        if(result == FindResult::found)
+        {
+            if(node->parent)
+            {
+                node->clear();
+                eraseFromCache(node->parent, node);
+            }
+        }
+        auto volumes = findVolumesByPath(dirPath);
+        if(volumes.empty())
+        {
+            throw std::runtime_error(fmt::format("No volumes were mount for path {}", dirPath));
+        }
+        for(auto& mp: volumes)
+        {
+            mops.emplace_back(mp, acquireVolumeOpSeq(*mp));
+        }
+    }
+    for(auto& mp:mops)
+    {
+        auto mount = mp.first;
+        auto opSeq = mp.second;
+        executeOpInSequence(*mount, opSeq, [dirPath, &mount](){
+            mount->volume->eraseDirRecursive(getLocalMountPath(dirPath, *mount));
+        });
+    }
 }
 
 boost::optional<std::vector<PHKVStorageImpl::DirEntry>> PHKVStorageImpl::getDirEntries(boost::string_view dirPath)
 {
+    auto path = splitDirPath(dirPath);
+
+    LockGuard guard(m_cacheMtx);
+    FindResult result;
+    CacheTreeNode* node;
+    std::tie(result, node) = findInCache(path);
+    if(result == FindResult::inconsistentCache)
+    {
+        fillCache(path);
+        std::tie(result, node) = findInCache(path);
+    }
+    std::vector<PHKVStorageImpl::DirEntry> rv;
+    if(result == FindResult::found)
+    {
+        auto& dir = node->getDir();
+        for(auto& childNode:dir.content)
+        {
+            rv.push_back({childNode.type, childNode.name});
+        }
+        return {rv};
+    }
     return {};
 }
 

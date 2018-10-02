@@ -1,0 +1,36 @@
+{
+  "name": "phkvs-web-tst",
+  "version": "1.0.0",
+  "description": "Test Web App for Persistent Hierarhical Key-Value Storage library",
+  "main": "index.tsx",
+  "dependencies": {
+    "@types/node": "^8.0.0",
+    "@types/react": "^16.0.31",
+    "@types/react-color": "^2.13.5",
+    "@types/react-dom": "^16.0.3",
+    "css-loader": "^0.28.7",
+    "file-loader": "^1.1.6",
+    "json-rpc-2.0": "^0.2.4",
+    "react": "^16.2.0",
+    "react-color": "^2.14.1",
+    "react-dom": "^16.2.0",
+    "semantic-ui-css": "^2.2.12",
+    "semantic-ui-react": "^0.81",
+    "style-loader": "^0.19.1",
+    "typescript": "^2.6.2",
+    "url-loader": "^0.6.2"
+  },
+  "devDependencies": {
+    "awesome-typescript-loader": "^3.4.1",
+    "html-webpack-plugin": "^2.30.1",
+    "source-map-loader": "^0.2.3",
+    "webpack": "^3.10.0"
+  },
+  "scripts": {
+    "build": "webpack",
+    "build_wait": "webpack -w",
+    "build_release": "webpack -p --progress --config webpack.release.config.js"
+  },
+  "author": "Konstantin 'Xecutor' Stupnik",
+  "license": "ISC"
+}

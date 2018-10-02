@@ -43,3 +43,5 @@ add_test(NAME stmfilestoragetest COMMAND test_stmfilestorage)
 add_test(NAME bigfilestoragetest COMMAND test_bigfilestorage)
 add_test(NAME storagevolumetest COMMAND test_volume)
 add_test(NAME phkvstoragetest COMMAND test_phkvstorage)
+
+add_subdirectory(webtest)

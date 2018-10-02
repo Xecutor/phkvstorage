@@ -173,16 +173,26 @@ public:
         EXPECT_EQ(boost::get<T>(*optval), value);
     }
 
+    std::set<std::string> generatedStrings;
+
     std::string randomString(size_t minLength, size_t maxLength)
     {
         static const char chars[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         std::uniform_int_distribution<size_t> disLen(minLength, maxLength);
-        std::string rv(disLen(rng), 0);
         std::uniform_int_distribution<size_t> disChar(0, sizeof(chars) - 2);//inclusive range, and terminating zero
-        std::generate_n(rv.begin(), rv.size(), [this, &disChar]() {
-            return chars[disChar(rng)];
-        });
-        return rv;
+        for(;;)
+        {
+            std::string rv(disLen(rng), 0);
+            std::generate_n(rv.begin(), rv.size(), [this, &disChar]() {
+                return chars[disChar(rng)];
+            });
+            if(generatedStrings.find(rv) != generatedStrings.end())
+            {
+                continue;
+            }
+            generatedStrings.insert(rv);
+            return rv;
+        }
     }
 
 };
