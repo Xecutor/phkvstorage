@@ -2,6 +2,9 @@ find_package(GTest REQUIRED)
 add_executable(test_simple test_simple.cpp)
 target_link_libraries(test_simple PRIVATE GTest::GTest GTest::Main phkvstorage)
 
+#to prevent .dlls from copying on every test
+option(VCPKG_APPLOCAL_DEPS "" OFF)
+
 add_executable(test_buffers test_buffers.cpp)
 target_link_libraries(test_buffers PRIVATE GTest::GTest GTest::Main fmt::fmt phkvstorage)
 
