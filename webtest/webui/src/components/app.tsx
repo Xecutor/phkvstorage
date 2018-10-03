@@ -5,6 +5,8 @@ import { WsHandler, jsonrpcInit, jsonrpcCall } from '../utils/jsonrpc'
 
 import { VolumeInfo, VolumesTab } from './volumes-tab'
 import { DataTab } from './data-tab'
+import { LookupTab } from './lookup-tab'
+import { StoreTab } from './store-tab'
 
 import { Tab, Loader } from 'semantic-ui-react'
 import 'semantic-ui-css/semantic.min.css';
@@ -64,6 +66,14 @@ export class PHKVSWebTest extends React.Component<any, PHKVSWebTestState> implem
                 {
                     menuItem: 'Data',
                     pane: <Tab.Pane key='data'><DataTab /></Tab.Pane>
+                },
+                {
+                    menuItem: 'Store',
+                    pane: <Tab.Pane key='store'><StoreTab /></Tab.Pane>
+                },
+                {
+                    menuItem: 'Lookup',
+                    pane: <Tab.Pane key='lookup'><LookupTab /></Tab.Pane>
                 },
             ]
             mainComponent = <Tab renderActiveOnly={false} panes={panes}></Tab>

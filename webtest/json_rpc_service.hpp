@@ -84,6 +84,14 @@ public:
         }
         m_result.GetObject().AddMember(name, value, m_result.GetAllocator());
     }
+    template <size_t N, size_t M>
+    void addMember(const char (&name)[N], const char (&value)[M])
+    {
+        if ( m_result.GetType() != rapidjson::kObjectType ) {
+            m_result.SetObject();
+        }
+        m_result.GetObject().AddMember(name, value, m_result.GetAllocator());
+    }
 protected:
     rapidjson::Document m_result;
 };
@@ -112,12 +120,11 @@ protected:
     json_rpc_result create_and_mount_volume_method(const json_rpc_method_params& params);
     json_rpc_result mount_volume_method(const json_rpc_method_params& params);
 
-//    json_rpc_result get_db_list_method(const json_rpc_method_params& params);
-//
-//    json_rpc_result select_method(const json_rpc_method_params& params);
-//    json_rpc_result insert_method(const json_rpc_method_params& params);
-//    json_rpc_result update_method(const json_rpc_method_params& params);
-//    json_rpc_result delete_method(const json_rpc_method_params& params);
+    json_rpc_result store_method(const json_rpc_method_params& params);
+    json_rpc_result lookup_method(const json_rpc_method_params& params);
+    json_rpc_result get_dir_entries_method(const json_rpc_method_params& params);
+    json_rpc_result erase_key_method(const json_rpc_method_params& params);
+    json_rpc_result erase_dir_recursive_method(const json_rpc_method_params& params);
 
-    std::map<std::string, std::vector<std::string>> m_dbmap;
+
 };

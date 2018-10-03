@@ -7,7 +7,8 @@
 bool json_rpc_method_params::getBool(const char* name) const
 {
     auto member = m_params.FindMember(name);
-    if (member == m_params.MemberEnd() || !member->value.IsBool()) {
+    if(member == m_params.MemberEnd() || !member->value.IsBool())
+    {
         throw json_rpc_exception(json_rpc_error::invalid_params, name);
     }
     return member->value.GetBool();
@@ -16,8 +17,10 @@ bool json_rpc_method_params::getBool(const char* name) const
 bool json_rpc_method_params::getBoolDefault(const char* name, bool defaultValue) const
 {
     auto member = m_params.FindMember(name);
-    if (member == m_params.MemberEnd()) {
-        if (!member->value.IsBool()) {
+    if(member == m_params.MemberEnd())
+    {
+        if(!member->value.IsBool())
+        {
             throw json_rpc_exception(json_rpc_error::invalid_params, name);
         }
         return defaultValue;
@@ -28,7 +31,8 @@ bool json_rpc_method_params::getBoolDefault(const char* name, bool defaultValue)
 int json_rpc_method_params::getInt(const char* name) const
 {
     auto member = m_params.FindMember(name);
-    if (member == m_params.MemberEnd() || !member->value.IsInt()) {
+    if(member == m_params.MemberEnd() || !member->value.IsInt())
+    {
         throw json_rpc_exception(json_rpc_error::invalid_params, name);
     }
     return member->value.GetInt();
@@ -37,8 +41,10 @@ int json_rpc_method_params::getInt(const char* name) const
 int json_rpc_method_params::getIntDefault(const char* name, int defaultValue) const
 {
     auto member = m_params.FindMember(name);
-    if (member == m_params.MemberEnd()) {
-        if (!member->value.IsInt()) {
+    if(member == m_params.MemberEnd())
+    {
+        if(!member->value.IsInt())
+        {
             throw json_rpc_exception(json_rpc_error::invalid_params, name);
         }
         return defaultValue;
@@ -49,7 +55,8 @@ int json_rpc_method_params::getIntDefault(const char* name, int defaultValue) co
 const char* json_rpc_method_params::getString(const char* name) const
 {
     auto member = m_params.FindMember(name);
-    if (member == m_params.MemberEnd() || !member->value.IsString()) {
+    if(member == m_params.MemberEnd() || !member->value.IsString())
+    {
         throw json_rpc_exception(json_rpc_error::invalid_params, name);
     }
     return member->value.GetString();
@@ -58,8 +65,10 @@ const char* json_rpc_method_params::getString(const char* name) const
 const char* json_rpc_method_params::getStringDefault(const char* name, const char* defaultValue) const
 {
     auto member = m_params.FindMember(name);
-    if (member == m_params.MemberEnd()) {
-        if (!member->value.IsString()) {
+    if(member == m_params.MemberEnd())
+    {
+        if(!member->value.IsString())
+        {
             throw json_rpc_exception(json_rpc_error::invalid_params, name);
         }
         return defaultValue;
@@ -67,15 +76,19 @@ const char* json_rpc_method_params::getStringDefault(const char* name, const cha
     return member->value.GetString();
 }
 
-rapidjson::Value::ConstArray json_rpc_method_params::getArray(const char* name, rapidjson::Type expectedType)const
+rapidjson::Value::ConstArray json_rpc_method_params::getArray(const char* name, rapidjson::Type expectedType) const
 {
     auto member = m_params.FindMember(name);
-    if (member == m_params.MemberEnd() || !member->value.IsArray()) {
+    if(member == m_params.MemberEnd() || !member->value.IsArray())
+    {
         throw json_rpc_exception(json_rpc_error::invalid_params, name);
     }
-    if (expectedType != rapidjson::kNullType) {
-        for(auto& v:member->value.GetArray()) {
-            if(v.GetType()!=expectedType) {
+    if(expectedType != rapidjson::kNullType)
+    {
+        for(auto& v:member->value.GetArray())
+        {
+            if(v.GetType() != expectedType)
+            {
                 throw json_rpc_exception(json_rpc_error::invalid_params, name);
             }
         }
@@ -83,10 +96,11 @@ rapidjson::Value::ConstArray json_rpc_method_params::getArray(const char* name, 
     return member->value.GetArray();
 }
 
-const rapidjson::Value& json_rpc_method_params::getObject(const char* name)const
+const rapidjson::Value& json_rpc_method_params::getObject(const char* name) const
 {
     auto member = m_params.FindMember(name);
-    if (member == m_params.MemberEnd() || !member->value.IsObject()) {
+    if(member == m_params.MemberEnd() || !member->value.IsObject())
+    {
         throw json_rpc_exception(json_rpc_error::invalid_params, name);
     }
     return member->value;
@@ -97,23 +111,30 @@ void json_rpc_service::init(phkvs::PHKVStorage::UniquePtr&& storage, const confi
     m_storage = std::move(storage);
     m_default_path = config.default_path;
 
-    registerMethod("get_volumes_list",[this](const json_rpc_method_params& params){return get_volumes_list_method(params);});
-    registerMethod("create_and_mount_volume",[this](const json_rpc_method_params& params){return create_and_mount_volume_method(params);});
-    registerMethod("mount_volume",[this](const json_rpc_method_params& params){return mount_volume_method(params);});
+    registerMethod("get_volumes_list",
+                   [this](const json_rpc_method_params& params) { return get_volumes_list_method(params); });
+    registerMethod("create_and_mount_volume",
+                   [this](const json_rpc_method_params& params) { return create_and_mount_volume_method(params); });
+    registerMethod("mount_volume",
+                   [this](const json_rpc_method_params& params) { return mount_volume_method(params); });
+    registerMethod("store",
+                   [this](const json_rpc_method_params& params) { return store_method(params); });
+    registerMethod("lookup",
+                   [this](const json_rpc_method_params& params) { return lookup_method(params); });
+    registerMethod("get_dir_entries",
+                   [this](const json_rpc_method_params& params) { return get_dir_entries_method(params); });
+    registerMethod("erase_key",
+                   [this](const json_rpc_method_params& params) { return erase_key_method(params); });
+    registerMethod("erase_dir_recursive",
+                   [this](const json_rpc_method_params& params) { return erase_dir_recursive_method(params); });
 
-//    registerMethod("get_db_list",[this](const json_rpc_method_params& params){return get_db_list_method(params);});
-//    registerMethod("select",[this](const json_rpc_method_params& params){return select_method(params);});
-//    registerMethod("insert",[this](const json_rpc_method_params& params){return insert_method(params);});
-//    registerMethod("update",[this](const json_rpc_method_params& params){return update_method(params);});
-//    registerMethod("delete",[this](const json_rpc_method_params& params){return delete_method(params);});
-
-//    prepare_db_map();
 }
 
-json_rpc_result json_rpc_service::callMethod(const char* methodName, const json_rpc_method_params& params)const
+json_rpc_result json_rpc_service::callMethod(const char* methodName, const json_rpc_method_params& params) const
 {
     auto it = m_methods.find(methodName);
-    if (it == m_methods.end()) {
+    if(it == m_methods.end())
+    {
         throw json_rpc_exception(json_rpc_error::method_not_found, methodName);
     }
     return it->second.method(params);
@@ -259,105 +280,175 @@ json_rpc_result json_rpc_service::mount_volume_method(const json_rpc_method_para
     }
     auto volId = m_storage->mountVolume(volumePath, volumeName, mountPointPath);
     json_rpc_result result;
-    result.get_document().AddMember("volumeId", volId, result.get_document().GetAllocator());
+    result.addMember("volumeId", volId);
     return result;
 }
 
-//json_rpc_result json_rpc_service::get_db_list_method(const json_rpc_method_params& params)
-//{
-//    json_rpc_result result;
-//    load_json_file("database.json", result.get_document());
-//    return result;
-//}
+json_rpc_result json_rpc_service::store_method(const json_rpc_method_params& params)
+{
+    auto keyPath = params.getString("key");
+    phkvs::PHKVStorage::ValueType value;
+    std::string type = params.getString("type");
+    std::string valueStr = params.getString("value");
+    if(type == "uint8")
+    {
+        value = static_cast<uint8_t>(std::stoul(valueStr));
+    }
+    else if(type == "uint16")
+    {
+        value = static_cast<uint16_t>(std::stoul(valueStr));
+    }
+    else if(type == "uint32")
+    {
+        value = static_cast<uint32_t>(std::stoul(valueStr));
+    }
+    else if(type == "uint64")
+    {
+        value = static_cast<uint64_t>(std::stoull(valueStr));
+    }
+    else if(type == "float")
+    {
+        value = std::stof(valueStr);
+    }
+    else if(type == "double")
+    {
+        value = std::stod(valueStr);
+    }
+    else if(type == "string")
+    {
+        value = valueStr;
+    }
+    else if(type == "blob")
+    {
+        std::vector<uint8_t> v;
 
-//json_rpc_result json_rpc_service::select_method(const json_rpc_method_params& params)
-//{
-//    auto tablename = params.getString("table");
-//    auto filter = params.getStringDefault("ID", nullptr);
-//    auto it = m_dbmap.find(tablename);
-//    if(it==m_dbmap.end()) {
-//        throw json_rpc_exception(json_rpc_error::table_not_found, tablename);
-//    }
-//    json_rpc_result result;
-//    result.get_document().SetArray();
-//    auto& a = result.get_document().GetAllocator();
-//    for(auto& file:it->second) {
-//        rapidjson::Document tbl(&a);
-//        load_json_file(file, tbl);
-//        result.get_document().GetArray().Reserve(result.get_document().GetArray().Size() + tbl.GetArray().Size(), a);
-//        for(auto& item:tbl.GetArray()) {
-//            if ( filter && item.GetObject().FindMember("ID")->value != filter ) {
-//                continue;
-//            }
-//            //rapidjson::Value itemCopy(item, result.get_document().GetAllocator());
-//            item.AddMember("_filename", file, result.get_document().GetAllocator());
-//            result.push_back(std::move(item));
-//        }
-//    }
-//    return result;
-//}
-//
-//json_rpc_result json_rpc_service::insert_method(const json_rpc_method_params& params)
-//{
-//    rapidjson::Document doc;
-//    const std::string filename = params.getString("_filename");
-//    load_json_file(filename, doc);
-//    rapidjson::Value obj(params.getObject("object"), doc.GetAllocator());
-//    doc.GetArray().PushBack(obj, doc.GetAllocator());
-//    store_json_file(filename, doc);
-//    json_rpc_result res;
-//    res.addMember("status", 1);
-//    return res;
-//}
-//
-//json_rpc_result json_rpc_service::update_method(const json_rpc_method_params& params)
-//{
-//    rapidjson::Document doc;
-//    const std::string filename = params.getString("_filename");
-//    load_json_file(filename, doc);
-//    rapidjson::Value obj(params.getObject("object"), doc.GetAllocator());
-//
-//    auto& ID = obj["ID"];
-//
-//    for(auto& item:doc.GetArray()) {
-//        if ( item["ID"] == ID ) {
-//            item = obj;
-//            break;
-//        }
-//    }
-//    store_json_file(filename, doc);
-//    json_rpc_result res;
-//    res.addMember("status", 1);
-//    return res;
-//}
-//
-//json_rpc_result json_rpc_service::delete_method(const json_rpc_method_params& params)
-//{
-//    rapidjson::Document doc;
-//    const std::string filename = params.getString("_filename");
-//    load_json_file(filename, doc);
-//
-//    auto ID = params.getStringDefault("ID", nullptr);
-//
-//    int status = 0;
-//
-//    if(ID) {
-//        for(auto it = doc.GetArray().begin(), end = doc.GetArray().end();it!=end;++it) {
-//            auto& item = *it;
-//            if ( item["ID"] == ID ) {
-//                doc.GetArray().Erase(it);
-//                status = 1;
-//                break;
-//            }
-//        }
-//    }
-//    else {
-//        int idx = params.getInt("idx");
-//        doc.GetArray().Erase(doc.GetArray().begin() + idx);
-//        status = 1;
-//    }
-//    store_json_file(filename, doc);
-//    json_rpc_result res;
-//    res.addMember("status", status);
-//    return res;
-//}
+        for(size_t i = 0; i < valueStr.length(); i += 2)
+        {
+            v.push_back(static_cast<uint8_t>(std::strtoul(valueStr.substr(i, 2).c_str(), nullptr, 16)));
+        }
+        value = v;
+    }
+    m_storage->store(keyPath, value);
+    json_rpc_result result;
+    result.addMember("result", true);
+    return result;
+}
+
+json_rpc_result json_rpc_service::lookup_method(const json_rpc_method_params& params)
+{
+    auto keyPath = params.getString("key");
+    json_rpc_result result;
+    auto valOpt = m_storage->lookup(keyPath);
+    if(valOpt)
+    {
+        auto val = *valOpt;
+        switch(val.which())
+        {
+            case 0:
+            {
+                result.addMember("value", boost::get<uint8_t>(val));
+                result.addMember("type", std::string("uint8"));
+                break;
+            }
+            case 1:
+            {
+                result.addMember("value", boost::get<uint16_t>(val));
+                result.addMember("type", "uint16");
+                break;
+            }
+            case 2:
+            {
+                result.addMember("value", boost::get<uint32_t>(val));
+                result.addMember("type", "uint32");
+                break;
+            }
+            case 3:
+            {
+                result.addMember("value", boost::get<uint64_t>(val));
+                result.addMember("type", "uint64");
+                break;
+            }
+            case 4:
+            {
+                result.addMember("value", boost::get<float>(val));
+                result.addMember("type", "float");
+                break;
+            }
+            case 5:
+            {
+                result.addMember("value", boost::get<double>(val));
+                result.addMember("type", "double");
+                break;
+            }
+            case 6:
+            {
+                result.addMember("value", boost::get<std::string>(val));
+                result.addMember("type", "string");
+                break;
+            }
+            case 7:
+            {
+                std::string dump;
+                for(auto& b:boost::get<std::vector<uint8_t>>(val))
+                {
+                    dump += fmt::format("{:02x}", b);
+                }
+                result.addMember("value", dump);
+                result.addMember("type", "blob");
+                break;
+            }
+        }
+    }
+    else
+    {
+        result.get_document().AddMember("value", rapidjson::Value().SetNull(), result.get_document().GetAllocator());
+        result.addMember("type", "none");
+    }
+    return result;
+}
+
+json_rpc_result json_rpc_service::get_dir_entries_method(const json_rpc_method_params& params)
+{
+    auto dirPath = params.getString("dir");
+    auto dirOpt = m_storage->getDirEntries(dirPath);
+    json_rpc_result result;
+    if(dirOpt)
+    {
+        result.addMember("dir", std::string(dirPath));
+        rapidjson::Value content;
+        content.SetArray();
+        for(auto& e:*dirOpt)
+        {
+            rapidjson::Value val;
+            val.SetObject();
+            std::string type = e.type == phkvs::PHKVStorage::EntryType::dir?"dir":"key";
+            val.AddMember("type", type, result.get_document().GetAllocator());
+            val.AddMember("name", e.name, result.get_document().GetAllocator());
+            content.PushBack(val, result.get_document().GetAllocator());
+        }
+        result.get_document().AddMember("content", content, result.get_document().GetAllocator());
+    }
+    else
+    {
+        result.addMember("result", false);
+    }
+    return result;
+}
+
+json_rpc_result json_rpc_service::erase_key_method(const json_rpc_method_params& params)
+{
+    auto keyPath = params.getString("key");
+    m_storage->eraseKey(keyPath);
+    json_rpc_result result;
+    result.addMember("result", true);
+    return result;
+}
+
+json_rpc_result json_rpc_service::erase_dir_recursive_method(const json_rpc_method_params& params)
+{
+    auto dirPath = params.getString("dir");
+    m_storage->eraseDirRecursive(dirPath);
+    json_rpc_result result;
+    result.addMember("result", true);
+    return {};
+}

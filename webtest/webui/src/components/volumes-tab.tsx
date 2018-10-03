@@ -1,7 +1,7 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
-import {Label, Input, Button} from 'semantic-ui-react'
+import {Table, Label, Input, Button, TableHeaderCell} from 'semantic-ui-react'
 import { jsonrpcCall } from "../utils/jsonrpc";
 
 export interface VolumeInfo{
@@ -76,6 +76,26 @@ export class VolumesTab extends React.Component<VolumesTabProps, VolumesTabState
             <Label>Volume name:</Label><Input value={this.state.volumeName} onChange={this.onVolumeNameChangedBound}/>
             <Label>Mount point path:</Label><Input value={this.state.mountPointPath} onChange={this.onMountPointPathChangedBound}/>
             <Button onClick={this.onCreateClickBound}>Create</Button><Button onClick={this.onMountClickBound}>Mount</Button>
+            <Table>
+                <Table.Header>
+                    <Table.Row>
+                    <Table.HeaderCell>Volume id</Table.HeaderCell>
+                    <Table.HeaderCell>Volume path</Table.HeaderCell>
+                    <Table.HeaderCell>Volume name</Table.HeaderCell>
+                    <Table.HeaderCell>Mount point path</Table.HeaderCell>
+                    </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                {
+                    this.props.volumes.map(v=><Table.Row key={v.volumeId}>
+                                        <Table.Cell>{v.volumeId}</Table.Cell>
+                                        <Table.Cell>{v.volumePath}</Table.Cell>
+                                        <Table.Cell>{v.volumeName}</Table.Cell>
+                                        <Table.Cell>{v.mountPointPath}</Table.Cell>
+                                    </Table.Row>)
+                }
+                </Table.Body>
+            </Table>
         </div>
     }
 }
