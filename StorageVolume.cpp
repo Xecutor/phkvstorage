@@ -88,10 +88,23 @@ private:
 
     void loadInplaceVector(InputBinBuffer& in, std::vector<uint8_t>& value);
 
+    enum class ValueTypeIndex {
+        idx_uint8_t = 0,
+        idx_uint16_t = 1,
+        idx_uint32_t = 2,
+        idx_uint64_t = 3,
+        idx_float = 4,
+        idx_double = 5,
+        idx_string = 6,
+        idx_vector = 7
+    };
+
     struct ValueInfo {
         ValueType value;
         OffsetType offset{0};
         size_t previousSize{0};
+        ValueTypeIndex typeIdx;
+        bool loaded = false;
 
         static constexpr size_t binSize()
         {
@@ -119,17 +132,6 @@ private:
     void storeValueType(OutputBinBuffer& out, ValueInfo& info, const std::string& value);
 
     void storeValueType(OutputBinBuffer& out, ValueInfo& info, const std::vector<uint8_t>& value);
-
-    enum class ValueTypeIndex {
-        idx_uint8_t = 0,
-        idx_uint16_t = 1,
-        idx_uint32_t = 2,
-        idx_uint64_t = 3,
-        idx_float = 4,
-        idx_double = 5,
-        idx_string = 6,
-        idx_vector = 7
-    };
 
     struct ValueTypeIndexVisitor {
         constexpr ValueTypeIndex operator()(uint8_t) const
@@ -197,7 +199,13 @@ private:
 
     void loadValueString(InputBinBuffer& in, bool isInplace, ValueInfo& value);
 
+    void loadValueStringDelayed(ValueInfo& value);
+
     void loadValueVector(InputBinBuffer& in, bool isInplace, ValueInfo& value);
+
+    void loadValueVectorDelayed(ValueInfo& value);
+
+    void loadValueDelayed(ValueInfo& value);
 
     static bool isInplaceLength(size_t length)
     {
@@ -233,6 +241,7 @@ private:
             expirationDateTime = 0;
             key.value = std::move(name);
             value.value = offset;
+            value.loaded = true;
         }
 
         void setValue(std::string newName, ValueType newValue, uint64_t expDate = 0)
@@ -241,6 +250,7 @@ private:
             expirationDateTime = expDate;
             key.value = std::move(newName);
             value.value = std::move(newValue);
+            value.loaded = true;
         }
 
         static constexpr size_t binSize()
@@ -391,14 +401,14 @@ const FileVersion StorageVolumeImpl::s_currentVersion = {0x0001, 0x0000};
 StorageVolumeImpl::StorageVolumeImpl(FileSystem::UniqueFilePtr&& mainFile,
                                      SmallToMediumFileStorage::UniquePtr&& stmFileStorage,
                                      BigFileStorage::UniquePtr&& bigFileStorage) :
-    m_mainFile(std::move(mainFile)),
-    m_stmStorage(std::move(stmFileStorage)),
-    m_bigStorage(std::move(bigFileStorage))
+        m_mainFile(std::move(mainFile)),
+        m_stmStorage(std::move(stmFileStorage)),
+        m_bigStorage(std::move(bigFileStorage))
 {
     std::hash<std::thread::id> hasher;
     std::seed_seq seed{
-        static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()),
-        static_cast<uint32_t>(hasher(std::this_thread::get_id()))
+            static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()),
+            static_cast<uint32_t>(hasher(std::this_thread::get_id()))
     };
     m_random.seed(seed);
 }
@@ -410,7 +420,7 @@ void StorageVolumeImpl::openImpl()
     if(fileSize < k_headerSize)
     {
         throw std::runtime_error(
-            fmt::format("StorageVolume::open: Unexpected file size of {}:{}",
+                fmt::format("StorageVolume::open: Unexpected file size of {}:{}",
                         m_mainFile->getFilename().string(), fileSize));
     }
     std::array<uint8_t, k_headerSize> headerData{};
@@ -424,7 +434,7 @@ void StorageVolumeImpl::openImpl()
     if(magic != s_magic)
     {
         throw std::runtime_error(
-            fmt::format("StorageVolume::open: invalid magic in file {}. Expected {}, but found {}",
+                fmt::format("StorageVolume::open: invalid magic in file {}. Expected {}, but found {}",
                         m_mainFile->getFilename().string(), s_magic, magic));
     }
 
@@ -433,7 +443,7 @@ void StorageVolumeImpl::openImpl()
     if(version != s_currentVersion)
     {
         throw std::runtime_error(
-            fmt::format("StorageVolume::open: invalid version of file {}. Expected {}, but found {}",
+                fmt::format("StorageVolume::open: invalid version of file {}. Expected {}, but found {}",
                         m_mainFile->getFilename().string(), s_magic, magic));
     }
     m_firstFreeHeadListNode = in.readU64();
@@ -446,7 +456,7 @@ void StorageVolumeImpl::createImpl()
     if(fileSize != 0)
     {
         throw std::runtime_error(fmt::format("StorageVolume::create: file {} must be empty, but size={}",
-                                             m_mainFile->getFilename().string(), fileSize));
+                m_mainFile->getFilename().string(), fileSize));
     }
     std::array<uint8_t, k_headerSize + SkipListNode::binSize()> headerData{};
     auto buf = boost::asio::buffer(headerData);
@@ -551,6 +561,12 @@ void StorageVolumeImpl::loadInplaceVector(InputBinBuffer& in, std::vector<uint8_
 
 void StorageVolumeImpl::storeValue(OutputBinBuffer& out, ValueInfo& value)
 {
+    if(!value.loaded)
+    {
+        out.writeU64(value.previousSize);
+        out.writeU64(value.offset);
+        return;
+    }
     size_t sizeBefore = out.remainingSpace();
     apply_visitor([this, &value, &out](const auto& valueType) {
         storeValueType(out, value, valueType);
@@ -703,32 +719,44 @@ void StorageVolumeImpl::storeValueType(OutputBinBuffer& out, ValueInfo& info, co
 
 size_t StorageVolumeImpl::calcValueLength(ValueInfo& info)
 {
+    if(!info.loaded)
+    {
+        return info.previousSize;
+    }
     return boost::apply_visitor(ValueTypeLengthVisitor(), info.value);
 }
 
 void StorageVolumeImpl::loadValue(InputBinBuffer& in, ValueTypeIndex typeIndex, bool isInplace, ValueInfo& value)
 {
     using VTI = ValueTypeIndex;
+    value.loaded = false;
+    value.typeIdx = typeIndex;
     size_t sizeBefore = in.remainingSpace();
     switch(typeIndex)
     {
         case VTI::idx_uint8_t:
             value.value = in.readU8();
+            value.loaded = true;
             break;
         case VTI::idx_uint16_t:
             value.value = in.readU16();
+            value.loaded = true;
             break;
         case VTI::idx_uint32_t:
             value.value = in.readU32();
+            value.loaded = true;
             break;
         case VTI::idx_uint64_t:
             value.value = in.readU64();
+            value.loaded = true;
             break;
         case VTI::idx_float:
             value.value = in.readFloat();
+            value.loaded = true;
             break;
         case VTI::idx_double:
             value.value = in.readDouble();
+            value.loaded = true;
             break;
         case VTI::idx_string:
             loadValueString(in, isInplace, value);
@@ -738,7 +766,7 @@ void StorageVolumeImpl::loadValue(InputBinBuffer& in, ValueTypeIndex typeIndex, 
             break;
         default:
             throw std::runtime_error(fmt::format("StorageVolume:: Corrupted file, invalid value type index:{}",
-                                                 static_cast<uint8_t>(typeIndex)));
+                    static_cast<uint8_t>(typeIndex)));
     }
     size_t bytesRead = sizeBefore - in.remainingSpace();
     if(bytesRead < k_inplaceSize)
@@ -752,14 +780,18 @@ void StorageVolumeImpl::loadValueString(InputBinBuffer& in, bool isInplace, Valu
     if(isInplace)
     {
         value.value = std::string{};
+        value.loaded = true;
         loadInplaceString(in, boost::get<std::string&>(value.value));
         return;
     }
-    auto length = static_cast<size_t>(in.readU64());
-    value.value = std::string(length, ' ');
-    value.previousSize = length;
+    value.previousSize = static_cast<size_t>(in.readU64());
     value.offset = in.readU64();
-    if(isSmallToMediumLenght(length))
+}
+
+void StorageVolumeImpl::loadValueStringDelayed(ValueInfo& value)
+{
+    value.value = std::string(value.previousSize, ' ');
+    if(isSmallToMediumLenght(value.previousSize))
     {
         m_stmStorage->read(value.offset, boost::asio::buffer(boost::get<std::string&>(value.value)));
     }
@@ -774,20 +806,36 @@ void StorageVolumeImpl::loadValueVector(InputBinBuffer& in, bool isInplace, Valu
     if(isInplace)
     {
         value.value = std::vector<uint8_t>{};
+        value.loaded = true;
         loadInplaceVector(in, boost::get<std::vector<uint8_t>&>(value.value));
         return;
     }
-    auto length = static_cast<size_t>(in.readU64());
-    value.value = std::vector<uint8_t>(length, 0);
-    value.previousSize = length;
+    value.previousSize = static_cast<size_t>(in.readU64());
     value.offset = in.readU64();
-    if(isSmallToMediumLenght(length))
+}
+
+void StorageVolumeImpl::loadValueVectorDelayed(ValueInfo& value)
+{
+    value.value = std::vector<uint8_t>(value.previousSize, 0);
+    if(isSmallToMediumLenght(value.previousSize))
     {
         m_stmStorage->read(value.offset, boost::asio::buffer(boost::get<std::vector<uint8_t>&>(value.value)));
     }
     else
     {
         m_bigStorage->read(value.offset, boost::asio::buffer(boost::get<std::vector<uint8_t>&>(value.value)));
+    }
+}
+
+void StorageVolumeImpl::loadValueDelayed(ValueInfo& value)
+{
+    if(value.typeIdx == ValueTypeIndex::idx_string)
+    {
+        loadValueStringDelayed(value);
+    }
+    else if(value.typeIdx == ValueTypeIndex::idx_vector)
+    {
+        loadValueVectorDelayed(value);
     }
 }
 
@@ -810,7 +858,14 @@ void StorageVolumeImpl::storeEntry(OutputBinBuffer& out, Entry& entry)
             flags |= static_cast<uint8_t>(EntryFlags::inplaceValue);
         }
     }
-    flags |= static_cast<uint8_t>(boost::apply_visitor(ValueTypeIndexVisitor(), entry.value.value));
+    if(entry.value.loaded)
+    {
+        flags |= static_cast<uint8_t>(boost::apply_visitor(ValueTypeIndexVisitor(), entry.value.value));
+    }
+    else
+    {
+        flags |= static_cast<uint8_t>(entry.value.typeIdx);
+    }
     out.writeU8(flags);
     out.writeU64(entry.expirationDateTime);
     storeKey(out, entry.key);
@@ -984,7 +1039,7 @@ void StorageVolumeImpl::store(boost::string_view keyPath, const StorageVolumeImp
                 if(entry.type != EntryType::dir)
                 {
                     throw std::runtime_error(
-                        fmt::format("StorageVolume::store: path entry {} is not a dir.", dir));
+                            fmt::format("StorageVolume::store: path entry {} is not a dir.", dir));
                 }
                 offset = boost::get<uint64_t>(entry.value.value);
             }
@@ -1024,6 +1079,10 @@ boost::optional<StorageVolumeImpl::ValueType> StorageVolumeImpl::lookup(boost::s
     if(keyEntry.expirationDateTime != 0 && keyEntry.expirationDateTime < nowInMilliseconds())
     {
         return {};
+    }
+    if(!keyEntry.value.loaded)
+    {
+        loadValueDelayed(keyEntry.value);
     }
     return {keyEntry.value.value};
 }
@@ -1292,8 +1351,8 @@ void StorageVolumeImpl::listInsert(OffsetType headOffset, Entry&& entry)
     loadNode(nodeOffset, node);
 
     getLogger()->debug("inserting {} into {} ... {} @ {}", entry.key.value,
-                       node.entries.front().key.value,
-                       node.entries.back().key.value, nodeOffset);
+            node.entries.front().key.value,
+            node.entries.back().key.value, nodeOffset);
 
 
     auto it = std::lower_bound(node.entries.begin(), node.entries.end(), entry, EntryKeyComparator{});
@@ -1302,9 +1361,9 @@ void StorageVolumeImpl::listInsert(OffsetType headOffset, Entry&& entry)
         if(it->type != entry.type)
         {
             throw std::runtime_error(
-                fmt::format(
-                    "StorageVolume::store: entry type cannot be changed (was {}, trying to overwrite with {}",
-                    it->type == EntryType::dir ? "dir" : "key", entry.type == EntryType::dir ? "dir" : "key"));
+                    fmt::format(
+                            "StorageVolume::store: entry type cannot be changed (was {}, trying to overwrite with {}",
+                            it->type == EntryType::dir ? "dir" : "key", entry.type == EntryType::dir ? "dir" : "key"));
         }
         it->key = std::move(entry.key);
         it->value.previousSize = calcValueLength(it->value);
@@ -1538,7 +1597,7 @@ StorageVolumeImpl::OffsetType StorageVolumeImpl::followPath(const std::vector<bo
             if(entry.type != EntryType::dir)
             {
                 throw std::runtime_error(
-                    fmt::format("StorageVolume:: entry '{}' is not a dir.", dir));
+                        fmt::format("StorageVolume:: entry '{}' is not a dir.", dir));
             }
             offset = boost::get<uint64_t>(entry.value.value);
         }
@@ -1586,7 +1645,7 @@ StorageVolume::UniquePtr StorageVolume::open(FileSystem::UniqueFilePtr&& mainFil
                                              BigFileStorage::UniquePtr&& bigFileStorage)
 {
     auto rv = std::make_unique<StorageVolumeImpl>(std::move(mainFile), std::move(stmFileStorage),
-                                                  std::move(bigFileStorage));
+            std::move(bigFileStorage));
 
     rv->openImpl();
 
@@ -1599,7 +1658,7 @@ StorageVolume::create(FileSystem::UniqueFilePtr&& mainFile,
                       BigFileStorage::UniquePtr&& bigFileStorage)
 {
     auto rv = std::make_unique<StorageVolumeImpl>(std::move(mainFile), std::move(stmFileStorage),
-                                                  std::move(bigFileStorage));
+            std::move(bigFileStorage));
 
     rv->createImpl();
 
@@ -1611,8 +1670,8 @@ void StorageVolume::initFileLogger(const boost::filesystem::path& filePath, size
     if(!spdlog::get(s_loggingCategory))
     {
         auto log = spdlog::default_factory::create<spdlog::sinks::rotating_file_sink_mt>(s_loggingCategory,
-                                                                                         filePath.string(),
-                                                                                         maxSize, maxFiles);
+                filePath.string(),
+                maxSize, maxFiles);
         log->set_level(spdlog::level::debug);
     }
 }

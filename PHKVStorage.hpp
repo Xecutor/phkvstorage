@@ -15,7 +15,7 @@ class PHKVStorage{
 public:
 
     struct Options{
-        size_t cachePoolSize{1024};
+        size_t cachePoolSize{16 * 1024};
     };
 
     using ValueType = boost::variant<uint8_t, uint16_t, uint32_t, uint64_t,

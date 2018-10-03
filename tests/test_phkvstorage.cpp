@@ -13,8 +13,17 @@
 class PHKVStorageTest : public FilesCleanupFixture {
 public:
     phkvs::PHKVStorage::UniquePtr storage;
+    std::mt19937 rng;
 
-    void createStorage(phkvs::PHKVStorage::Options opt={})
+    PHKVStorageTest()
+    {
+        std::seed_seq seed{
+                static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()),
+                static_cast<uint32_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count())};
+        rng.seed(seed);
+    }
+
+    void createStorage(phkvs::PHKVStorage::Options opt = {})
     {
         storage = phkvs::PHKVStorage::create(opt);
         ASSERT_TRUE(storage);
@@ -26,8 +35,10 @@ public:
         addToCleanup(path / (volumeName + ".phkvsbig"));
         addToCleanup(path / (volumeName + ".phkvsstm"));
     }
-    phkvs::PHKVStorage::VolumeId createMountAndCleanVolume(const boost::filesystem::path& volumePath, boost::string_view volumeName,
-                                                      boost::string_view mountPointPath)
+
+    phkvs::PHKVStorage::VolumeId
+    createMountAndCleanVolume(const boost::filesystem::path& volumePath, boost::string_view volumeName,
+                              boost::string_view mountPointPath)
     {
         auto rv = storage->createAndMountVolume(volumePath, volumeName, mountPointPath);
         addVolumeToCleanup(volumePath, std::string(volumeName.data(), volumeName.length()));
@@ -225,4 +236,57 @@ TEST_F(PHKVStorageTest, getDirEntriesBasic)
     }
     EXPECT_TRUE(keys.empty());
     EXPECT_TRUE(subDirs.empty());
+}
+
+TEST_F(PHKVStorageTest, storeConcurrent)
+{
+    phkvs::PHKVStorage::Options opt;
+    opt.cachePoolSize = 100000;
+    createStorage(opt);
+    createMountAndCleanVolume(".", "test1", "/foo");
+    createMountAndCleanVolume(".", "test2", "/bar");
+    std::vector<std::thread> threads;
+    for(size_t i = 0; i < std::thread::hardware_concurrency(); ++i)
+    {
+        threads.emplace_back([this, i]() {
+            for(size_t j = 0; j < 5000; ++j)
+            {
+                if(j & 1)
+                {
+                    storage->store(fmt::format("/foo/key-{}-{}", i, j), fmt::format("value{}", j));
+                }
+                else
+                {
+                    storage->store(fmt::format("/bar/key-{}-{}", i, j), fmt::format("value{}", j));
+                }
+            }
+            for(size_t j = 0; j < 5000; ++j)
+            {
+                if(j & 1)
+                {
+                    auto key = fmt::format("/foo/key-{}-{}", i, j);
+                    auto valOpt = storage->lookup(key);
+                    EXPECT_TRUE(valOpt) << "key=" << key;
+                    if(valOpt)
+                    {
+                        EXPECT_EQ(boost::get<std::string>(*valOpt), fmt::format("value{}", j));
+                    }
+                }
+                else
+                {
+                    auto key = fmt::format("/bar/key-{}-{}", i, j);
+                    auto valOpt = storage->lookup(key);
+                    EXPECT_TRUE(valOpt) << "key=" << key;
+                    if(valOpt)
+                    {
+                        EXPECT_EQ(boost::get<std::string>(*valOpt), fmt::format("value{}", j));
+                    }
+                }
+            }
+        });
+    }
+    for(auto& thr:threads)
+    {
+        thr.join();
+    }
 }
