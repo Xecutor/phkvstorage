@@ -8,7 +8,7 @@ import { DataTab } from './data-tab'
 import { LookupTab } from './lookup-tab'
 import { StoreTab } from './store-tab'
 
-import { Tab, Loader } from 'semantic-ui-react'
+import { Tab, Loader, Grid } from 'semantic-ui-react'
 import 'semantic-ui-css/semantic.min.css';
 
 interface PHKVSWebTestState {
@@ -67,6 +67,7 @@ export class PHKVSWebTest extends React.Component<any, PHKVSWebTestState> implem
 
         let mainComponent;
         if(this.state.volumesLoaded) {
+            /*
             const panes = [
                 {
                     menuItem: 'Volumes',
@@ -86,6 +87,17 @@ export class PHKVSWebTest extends React.Component<any, PHKVSWebTestState> implem
                 },
             ]
             mainComponent = <Tab renderActiveOnly={false} panes={panes}></Tab>
+            */
+           mainComponent = <Grid columns={3}>
+               <Grid.Row columns={1}>
+                   <Grid.Column><VolumesTab volumes={this.state.volumes} reloadVolumes={this.onReloadVolumesBound}/></Grid.Column>
+                </Grid.Row>
+               <Grid.Row>
+                   <Grid.Column><StoreTab/></Grid.Column>
+                   <Grid.Column><LookupTab/></Grid.Column>
+                   <Grid.Column><DataTab/></Grid.Column>
+                </Grid.Row>
+               </Grid>
         }
         else {
             mainComponent = <Loader active={true}>Loading...</Loader>;

@@ -29,6 +29,11 @@ target_link_libraries(
     phkvstorage
 )
 
+if(UNIX)
+    target_link_libraries(phkvs_webtest pthread)
+endif()
+
 if(WIN32)
   target_compile_definitions(phkvs_webtest PRIVATE _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS=1 _SCL_SECURE_NO_WARNINGS=1)
 endif()
+

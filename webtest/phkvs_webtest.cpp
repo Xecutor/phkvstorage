@@ -56,7 +56,18 @@ public:
 
         if(vm.count("open"))
         {
-            system(fmt::format("start \"\" http://{}:{}/", m_web_config.address, m_web_config.port).c_str());
+#ifdef _WIN32
+            int rc = system(fmt::format("start \"\" http://{}:{}/", m_web_config.address, m_web_config.port).c_str());
+#elif defined(__linux)
+            int rc = system(fmt::format("xdg-open http://{}:{}/", m_web_config.address, m_web_config.port).c_str());
+#else
+            int rc = -1;
+            fmt::print("Browser open not supported\n");
+#endif
+            if(rc != 0)
+            {
+                fmt::print("Failed to execute open url command\n");
+            }
         }
 
         m_web_server.registerWsHandler("/json_ws",

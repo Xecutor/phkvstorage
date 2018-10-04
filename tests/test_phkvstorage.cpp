@@ -170,8 +170,8 @@ TEST_F(PHKVStorageTest, eraseRecursiveBasic)
 TEST_F(PHKVStorageTest, eraseRecursiveMultiple)
 {
     createStorage();
-    auto volId1 = createMountAndCleanVolume(".", "test1", "/");
     auto volId2 = createMountAndCleanVolume(".", "test2", "/foo");
+    auto volId1 = createMountAndCleanVolume(".", "test1", "/");
     storage->store("/foo/key1", "value1");
     storage->store("/foo/key2", "value2");
     storage->store("/foo/bar/key1", "value1");

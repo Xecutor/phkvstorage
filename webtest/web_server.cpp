@@ -598,7 +598,7 @@ public:
         }
 
         std::string data;
-        for(auto& b:m_buffer.data())
+        for(const auto& b:m_buffer.data())
         {
             data.append(static_cast<const char*>(b.data()), b.size());
         }
