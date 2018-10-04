@@ -15,10 +15,6 @@ enum class json_rpc_error : int{
     method_not_found = -32601,
     invalid_params = -32602,
     internal_error = -32603,
-
-    file_open_error = -32000,
-    table_not_found = -32001,
-    file_parse_error= -32002
 };
 
 class json_rpc_exception:public std::runtime_error{
@@ -119,6 +115,7 @@ protected:
     json_rpc_result get_volumes_list_method(const json_rpc_method_params& params);
     json_rpc_result create_and_mount_volume_method(const json_rpc_method_params& params);
     json_rpc_result mount_volume_method(const json_rpc_method_params& params);
+    json_rpc_result unmount_volume_method(const json_rpc_method_params& params);
 
     json_rpc_result store_method(const json_rpc_method_params& params);
     json_rpc_result lookup_method(const json_rpc_method_params& params);

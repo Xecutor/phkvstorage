@@ -42,15 +42,24 @@ export class PHKVSWebTest extends React.Component<any, PHKVSWebTestState> implem
         this.onReloadVolumes()
     }
     onWsError() {
-        this.setState({ wsStatus: 'error' });
+        this.setState({ wsStatus: 'error' })
+        alert("WebSocket error");
     }
     onWsDisconnect() {
-        this.setState({ wsStatus: 'closed' });
+        this.setState({ wsStatus: 'closed' })
+        alert("WebSocket disconnected");
     }
+
+    onError(reason:any)
+    {
+        console.log(reason)
+        alert(reason)
+    }
+    onErrorBound = this.onError.bind(this)
 
     onReloadVolumes()
     {
-        jsonrpcCall("get_volumes_list").then(volList => this.setVolumes(volList))
+        jsonrpcCall("get_volumes_list").then(volList => this.setVolumes(volList),this.onErrorBound)
     }
     onReloadVolumesBound = this.onReloadVolumes.bind(this)
 
@@ -64,16 +73,16 @@ export class PHKVSWebTest extends React.Component<any, PHKVSWebTestState> implem
                     pane: <Tab.Pane key='volumes'><VolumesTab volumes={this.state.volumes} reloadVolumes={this.onReloadVolumesBound}/></Tab.Pane>
                 },
                 {
-                    menuItem: 'Data',
-                    pane: <Tab.Pane key='data'><DataTab /></Tab.Pane>
-                },
-                {
                     menuItem: 'Store',
                     pane: <Tab.Pane key='store'><StoreTab /></Tab.Pane>
                 },
                 {
                     menuItem: 'Lookup',
                     pane: <Tab.Pane key='lookup'><LookupTab /></Tab.Pane>
+                },
+                {
+                    menuItem: 'Browse',
+                    pane: <Tab.Pane key='data'><DataTab /></Tab.Pane>
                 },
             ]
             mainComponent = <Tab renderActiveOnly={false} panes={panes}></Tab>

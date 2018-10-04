@@ -117,6 +117,8 @@ void json_rpc_service::init(phkvs::PHKVStorage::UniquePtr&& storage, const confi
                    [this](const json_rpc_method_params& params) { return create_and_mount_volume_method(params); });
     registerMethod("mount_volume",
                    [this](const json_rpc_method_params& params) { return mount_volume_method(params); });
+    registerMethod("unmount_volume",
+            [this](const json_rpc_method_params& params) { return unmount_volume_method(params); });
     registerMethod("store",
                    [this](const json_rpc_method_params& params) { return store_method(params); });
     registerMethod("lookup",
@@ -265,7 +267,7 @@ json_rpc_result json_rpc_service::create_and_mount_volume_method(const json_rpc_
     fmt::print("volumePath={}, volumeName={}, mountPointPath={}", volumePath.string(), volumeName, mountPointPath);
     auto volId = m_storage->createAndMountVolume(volumePath, volumeName, mountPointPath);
     json_rpc_result result;
-    result.get_document().AddMember("volumeId", volId, result.get_document().GetAllocator());
+    result.addMember("volumeId", volId);
     return result;
 }
 
@@ -281,6 +283,15 @@ json_rpc_result json_rpc_service::mount_volume_method(const json_rpc_method_para
     auto volId = m_storage->mountVolume(volumePath, volumeName, mountPointPath);
     json_rpc_result result;
     result.addMember("volumeId", volId);
+    return result;
+}
+
+json_rpc_result json_rpc_service::unmount_volume_method(const json_rpc_method_params& params)
+{
+    auto volumeId = params.getInt("volumeId");
+    m_storage->unmountVolume(volumeId);
+    json_rpc_result result;
+    result.addMember("result", true);
     return result;
 }
 
@@ -401,6 +412,7 @@ json_rpc_result json_rpc_service::lookup_method(const json_rpc_method_params& pa
     }
     else
     {
+        result.get_document().SetObject();
         result.get_document().AddMember("value", rapidjson::Value().SetNull(), result.get_document().GetAllocator());
         result.addMember("type", "none");
     }

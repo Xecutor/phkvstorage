@@ -95,10 +95,14 @@ private:
                 resp.AddMember("id", id->value.GetInt(), resp.GetAllocator());
             }
             resp.AddMember("jsonrpc", "2.0", resp.GetAllocator());
-            auto& error = resp.AddMember("error", rapidjson::kObjectType, resp.GetAllocator());
+            rapidjson::Value error;
+            error.SetObject();
             error.AddMember("code", code, resp.GetAllocator());
             rapidjson::Value v(message, resp.GetAllocator());
             error.AddMember("message", rapidjson::Value(message, resp.GetAllocator()), resp.GetAllocator());
+
+            resp.AddMember("error", error, resp.GetAllocator());
+
 
             rapidjson::StringBuffer sbuf;
             rapidjson::Writer<rapidjson::StringBuffer> writer(sbuf);

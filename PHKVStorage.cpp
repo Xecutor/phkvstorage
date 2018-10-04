@@ -390,9 +390,9 @@ PHKVStorageImpl::createAndMountVolume(const boost::filesystem::path& volumePath,
                     pathPtr->string()));
         }
     }
-    auto volume = StorageVolume::create(createAndCheckFile(__FUNCTION__, mainPath),
-            SmallToMediumFileStorage::create(createAndCheckFile(__FUNCTION__, stmPath)),
-            BigFileStorage::create(createAndCheckFile(__FUNCTION__, bigPath)));
+    auto volume = StorageVolume::create(createAndCheckFile("PHKVStorage::createAndMountVolume", mainPath),
+            SmallToMediumFileStorage::create(createAndCheckFile("PHKVStorage::createAndMountVolume", stmPath)),
+            BigFileStorage::create(createAndCheckFile("PHKVStorage::createAndMountVolume", bigPath)));
 
     auto infoPtr = std::make_shared<MountPointInfo>();
 
@@ -419,9 +419,9 @@ PHKVStorageImpl::mountVolume(const boost::filesystem::path& volumePath, boost::s
                     pathPtr->string()));
         }
     }
-    auto volume = StorageVolume::open(openAndCheckFile(__FUNCTION__, mainPath),
-            SmallToMediumFileStorage::open(openAndCheckFile(__FUNCTION__, stmPath)),
-            BigFileStorage::open(openAndCheckFile(__FUNCTION__, bigPath)));
+    auto volume = StorageVolume::open(openAndCheckFile("PHKVStorage::mountVolume", mainPath),
+            SmallToMediumFileStorage::open(openAndCheckFile("PHKVStorage::mountVolume", stmPath)),
+            BigFileStorage::open(openAndCheckFile("PHKVStorage::mountVolume", bigPath)));
 
     auto infoPtr = std::make_shared<MountPointInfo>();
     auto& info = *infoPtr;
@@ -641,7 +641,7 @@ PHKVStorageImpl::findInCache(const std::vector<boost::string_view>& path)
     {
         return {FindResult::logicError, nullptr};
     }
-    return {FindResult::found, node};
+    return {node->getDir().cacheComplete ? FindResult::found : FindResult::inconsistentCache, node};
 }
 
 void
@@ -701,6 +701,7 @@ void PHKVStorageImpl::fillCache(const std::vector<boost::string_view>& path)
     {
         if(!isActualCacheDirNode(*cacheNode))
         {
+            cacheNode->clear();
             cacheNode->cacheSeq = m_cacheSeq.load(std::memory_order_acquire);
             cacheNode->getDir().cacheComplete = true;
             cacheNode->getDir().overlapingDir = mountNode->childMounts > 1;
@@ -772,6 +773,19 @@ void PHKVStorageImpl::fillCache(const std::vector<boost::string_view>& path)
                             //not enough cache size to load directory
                             return;
                         }
+                    }
+                }
+            }
+            if(mountFollowingPath)
+            {
+                for(auto& p : mountNode->subdirs)
+                {
+                    auto node = cacheNode->getDir().find(p.first);
+                    if(!node)
+                    {
+                        auto newCacheNode = m_cachePool.allocate(mountNode->childMounts > 1 ? 0 : 1);
+                        initDirCacheNode(*newCacheNode, std::string(p.first), cacheNode);
+                        cacheNode->getDir().content.insert_unique(*newCacheNode);
                     }
                 }
             }
