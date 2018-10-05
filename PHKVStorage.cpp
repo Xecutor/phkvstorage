@@ -89,21 +89,6 @@ public:
 
     boost::optional<std::vector<DirEntry>> getDirEntries(boost::string_view dirPath) override;
 
-private:
-
-    struct MountPointInfo {
-        std::string mountPoint;
-        boost::filesystem::path volumePath;
-        std::string volumeName;
-        VolumeId volumeId;
-        uint32_t lastOpSeqAssigned = 0;
-        uint32_t lastOpSeqExecuted = 0;
-        bool abortOp = false;
-        StorageVolume::UniquePtr volume;
-        std::mutex volumeMtx;
-        std::condition_variable volumeCondVar;
-    };
-
     static boost::filesystem::path
     makeMainFileFullPath(const boost::filesystem::path& volumePath, const std::string& volumeName)
     {
@@ -127,6 +112,21 @@ private:
         rv += ".phkvsbig";
         return rv;
     }
+
+private:
+
+    struct MountPointInfo {
+        std::string mountPoint;
+        boost::filesystem::path volumePath;
+        std::string volumeName;
+        VolumeId volumeId;
+        uint32_t lastOpSeqAssigned = 0;
+        uint32_t lastOpSeqExecuted = 0;
+        bool abortOp = false;
+        StorageVolume::UniquePtr volume;
+        std::mutex volumeMtx;
+        std::condition_variable volumeCondVar;
+    };
 
     static FileSystem::UniqueFilePtr
     createAndCheckFile(boost::string_view callFunc, const boost::filesystem::path& path)
@@ -249,6 +249,7 @@ private:
                 auto& dir = getDir();
                 for(auto& node : dir.content)
                 {
+                    node.parent = nullptr;
                     node.clear();
                 }
                 dir.content.clear();
@@ -1032,6 +1033,13 @@ boost::optional<std::vector<PHKVStorageImpl::DirEntry>> PHKVStorageImpl::getDirE
 PHKVStorage::UniquePtr PHKVStorage::create(const Options& options)
 {
     return std::make_unique<PHKVStorageImpl>(options);
+}
+
+void PHKVStorage::deleteVolume(const boost::filesystem::path& volumePath, boost::string_view volumeName)
+{
+    boost::filesystem::remove(PHKVStorageImpl::makeMainFileFullPath(volumePath, toString(volumeName)));
+    boost::filesystem::remove(PHKVStorageImpl::makeStmFileFullPath(volumePath, toString(volumeName)));
+    boost::filesystem::remove(PHKVStorageImpl::makeBigFileFullPath(volumePath, toString(volumeName)));
 }
 
 }

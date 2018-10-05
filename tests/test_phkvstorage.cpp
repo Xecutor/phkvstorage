@@ -96,7 +96,7 @@ TEST_F(PHKVStorageTest, mountMultipleSameMany)
     createStorage(opt);
     std::vector<std::string> volumes;
     std::vector<std::pair<std::string, uint32_t>> keysValues;
-    for(size_t i = 0; i < 100; ++i)
+    for(size_t i = 0; i < 1000; ++i)
     {
         auto volName = fmt::format("vol{}", i);
         auto volId = createMountAndCleanVolume(".", volName, "/foo");

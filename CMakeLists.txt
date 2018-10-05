@@ -45,3 +45,4 @@ add_test(NAME storagevolumetest COMMAND test_volume)
 add_test(NAME phkvstoragetest COMMAND test_phkvstorage)
 
 add_subdirectory(webtest)
+add_subdirectory(benchmark)

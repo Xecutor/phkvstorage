@@ -45,6 +45,7 @@ public:
     };
 
     static UniquePtr create(const Options& options);
+    static void deleteVolume(const boost::filesystem::path& volumePath, boost::string_view volumeName);
 
     virtual VolumeId createAndMountVolume(const boost::filesystem::path& volumePath, boost::string_view volumeName,
                                       boost::string_view mountPointPath) = 0;
